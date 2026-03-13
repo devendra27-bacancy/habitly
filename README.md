@@ -58,14 +58,15 @@ firebase deploy --only firestore:rules
 
 - Browser push opt-in is handled in the app profile screen
 - Reminder token registration requires a valid `NEXT_PUBLIC_FIREBASE_VAPID_KEY`
-- Automatic reminder sends are handled by the scheduled function in [functions/index.js](/D:/Anti/habitflow-next/functions/index.js)
-- Deploy the sender with:
+- Automatic reminder sends are handled by GitHub Actions running [scripts/reminder-runner.js](/D:/Anti/habitflow-next/scripts/reminder-runner.js)
+- Add these GitHub Actions secrets:
+  - `FIREBASE_SERVICE_ACCOUNT_JSON`
+  - `FIREBASE_PROJECT_ID`
+- The workflow lives in [.github/workflows/reminder-sender.yml](/D:/Anti/habitflow-next/.github/workflows/reminder-sender.yml) and supports both scheduled runs and manual dispatch
+- Local manual testing:
 
 ```bash
-cd functions
-npm install
-cd ..
-firebase deploy --only functions
+npm run reminders:run -- --dry-run
 ```
 
 ## Verification
@@ -88,3 +89,4 @@ npm run build
 - Local legacy data can be migrated into Firebase on first login
 - Web push reminder opt-in is handled per browser, with tokens stored under `users/{uid}/devices`
 - Reminder scheduling and payload details are documented in [docs/notifications.md](/D:/Anti/habitflow-next/docs/notifications.md)
+- GitHub Actions cron is not exact-to-the-minute, so reminder delivery should be expected within a few minutes of the scheduled time

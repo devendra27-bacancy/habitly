@@ -1,6 +1,6 @@
 # Notifications
 
-habitly now supports browser push opt-in, device token storage, and a scheduled reminder sender scaffold.
+habitly supports browser push opt-in, device token storage, and a scheduled reminder sender driven by GitHub Actions.
 
 ## What is live
 
@@ -10,7 +10,8 @@ habitly now supports browser push opt-in, device token storage, and a scheduled 
 - Background notification handling through `public/firebase-messaging-sw.js`
 - Per-device storage in `users/{uid}/devices/{tokenId}`
 - Profile-level notification settings in `users/{uid}.notificationSettings`
-- Scheduled reminder delivery scaffold in [functions/index.js](/D:/Anti/habitflow-next/functions/index.js)
+- Scheduled reminder delivery via [scripts/reminder-runner.js](/D:/Anti/habitflow-next/scripts/reminder-runner.js)
+- GitHub Actions orchestration via [.github/workflows/reminder-sender.yml](/D:/Anti/habitflow-next/.github/workflows/reminder-sender.yml)
 
 ## Firestore shape
 
@@ -57,11 +58,11 @@ habitly now supports browser push opt-in, device token storage, and a scheduled 
 
 ## Scheduling scaffold
 
-The backend sender now lives in [functions/index.js](/D:/Anti/habitflow-next/functions/index.js).
+The backend sender lives in [scripts/reminder-service.js](/D:/Anti/habitflow-next/scripts/reminder-service.js) and is invoked by [scripts/reminder-runner.js](/D:/Anti/habitflow-next/scripts/reminder-runner.js).
 
 It does this:
 
-1. Runs every 15 minutes.
+1. Runs every 5 minutes from GitHub Actions.
 2. Reads users where `notificationSettings.enabled == true`.
 3. Converts the current UTC time into each user timezone.
 4. Finds habits in `users/{uid}/habits` with the matching `reminderTime`.
@@ -70,15 +71,31 @@ It does this:
 7. Sends one grouped notification per user per time slot.
 8. Writes a dedupe marker to `users/{uid}/reminderDispatches/{date_time}`.
 9. Removes dead tokens when FCM reports invalid registrations.
+10. Supports manual targeting with `--dry-run`, `--user-id`, and `--at=ISO_TIMESTAMP`.
 
-## Deploying the sender
+## GitHub Actions setup
+
+Add these repository secrets:
+
+- `FIREBASE_SERVICE_ACCOUNT_JSON`
+- `FIREBASE_PROJECT_ID`
+
+The workflow supports:
+
+- `schedule`: every 5 minutes
+- `workflow_dispatch`: optional `dry_run`, `user_id`, and `at` inputs
+
+## Manual testing
 
 ```bash
-cd functions
-npm install
-cd ..
-firebase deploy --only functions
+npm run reminders:run -- --dry-run
+npm run reminders:run -- --dry-run --user-id=YOUR_USER_ID
+npm run reminders:run -- --dry-run --at=2026-03-13T08:00:00.000Z
 ```
+
+## Timing note
+
+GitHub Actions cron is not exact-to-the-minute. Reminder delivery should be treated as "within the next few minutes," not second-perfect.
 
 ## Payload suggestion
 
@@ -91,7 +108,8 @@ firebase deploy --only functions
   "data": {
     "screen": "home",
     "localDate": "2026-03-13",
-    "slotTime": "20:00"
+    "slotTime": "20:00",
+    "link": "/"
   },
   "webpush": {
     "fcmOptions": {
