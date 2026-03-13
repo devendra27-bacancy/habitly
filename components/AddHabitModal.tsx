@@ -51,7 +51,7 @@ const COLORS = [
 ];
 
 const HOUR_OPTIONS = Array.from({ length: 12 }, (_, index) => String(index + 1));
-const MINUTE_OPTIONS = ["00", "15", "30", "45"];
+const MINUTE_OPTIONS = Array.from({ length: 12 }, (_, index) => String(index * 5).padStart(2, "0"));
 const PERIOD_OPTIONS = ["AM", "PM"] as const;
 type PeriodOption = (typeof PERIOD_OPTIONS)[number];
 
