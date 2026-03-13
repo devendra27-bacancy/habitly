@@ -194,12 +194,28 @@ button:disabled {
 /* ===== HEADER ===== */
 .header {
   padding: 52px 20px 16px;
-  display: flex; justify-content: space-between; align-items: flex-start;
+  display: flex;
+  flex-direction: column;
   gap: 12px;
 }
-.header-greeting { font-size: 26px; font-weight: 900; color: var(--text-dark); }
+.header-greeting {
+  width: 100%;
+  font-size: 26px;
+  font-weight: 900;
+  color: var(--text-dark);
+}
 .header-greeting span { color: var(--green-accent); }
-.header-date { font-size: 13px; font-weight: 700; color: var(--text-muted); margin-top: 2px; }
+.header-meta {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.header-meta-copy {
+  flex: 1;
+  min-width: 0;
+}
+.header-date { font-size: 13px; font-weight: 700; color: var(--text-muted); }
 .header-sync {
   margin-top: 7px;
   font-size: 12px;
@@ -247,6 +263,18 @@ button:disabled {
   padding: 2px 8px;
   border-radius: 50px;
   font-size: 11px;
+}
+
+@media (max-width: 767px) {
+  .header-meta {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .header-chips {
+    align-self: flex-start;
+    flex-wrap: wrap;
+  }
 }
 
 /* ===== WEEK STRIP ===== */
