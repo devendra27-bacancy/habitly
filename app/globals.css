@@ -1328,6 +1328,22 @@ button:disabled {
 .profile-actions {
   margin-top: auto;
   padding-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.profile-delete {
+  width: 100%;
+  border: none;
+  border-radius: 999px;
+  padding: 15px 20px;
+  background: linear-gradient(135deg, #c84e6a, #a92b49);
+  color: white;
+  font-family: var(--font-fredoka), cursive;
+  font-size: 18px;
+  cursor: pointer;
+  box-shadow: 0 14px 24px rgba(169, 43, 73, 0.2);
 }
 
 @media (max-width: 767px) {

@@ -14,6 +14,7 @@ type ProfilePageProps = {
   isOpen: boolean;
   onClose: () => void;
   onEditName: () => void;
+  onDeleteAccount: () => void;
   name: string;
   email?: string;
   photoURL?: string;
@@ -21,6 +22,7 @@ type ProfilePageProps = {
   levelXp: number;
   totalXp: number;
   stats: ProfileStat[];
+  isDeletingAccount?: boolean;
 };
 
 function getInitials(name: string) {
@@ -38,6 +40,7 @@ export function ProfilePage({
   isOpen,
   onClose,
   onEditName,
+  onDeleteAccount,
   name,
   email,
   photoURL,
@@ -45,6 +48,7 @@ export function ProfilePage({
   levelXp,
   totalXp,
   stats,
+  isDeletingAccount = false,
 }: ProfilePageProps) {
   if (!isOpen) return null;
 
@@ -115,6 +119,9 @@ export function ProfilePage({
           <div className="profile-actions">
             <button className="profile-logout" onClick={() => void logout()}>
               Log out
+            </button>
+            <button className="profile-delete" onClick={onDeleteAccount} disabled={isDeletingAccount}>
+              {isDeletingAccount ? "Deleting account..." : "Delete account"}
             </button>
           </div>
         </div>

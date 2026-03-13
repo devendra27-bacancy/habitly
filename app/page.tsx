@@ -1,7 +1,8 @@
 "use client";
 
 import Image from "next/image";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { collection, doc, getDocs, writeBatch } from "firebase/firestore";
 import { Header } from "../components/Header";
 import { WeekStrip } from "../components/WeekStrip";
 import { MascotArea } from "../components/MascotArea";
@@ -18,10 +19,14 @@ import { LocalMigrationPrompt } from "../components/LocalMigrationPrompt";
 import { ToastContainer } from "../components/ToastContainer";
 import { useHabits, todayStr, isScheduledToday, Habit } from "../lib/useHabits";
 import { localDateStr } from "../lib/dates";
+import { deleteCurrentUserAccount } from "../lib/auth";
+import { db } from "../lib/firebase";
+import { showToast } from "../components/ToastContainer";
 import { useAuth } from "../components/AuthProvider";
 import Login from "../components/Login";
 
 type HabitDraft = Omit<Habit, "id" | "streak" | "longestStreak" | "totalDone" | "lastCompleted" | "createdAt">;
+const ACCOUNT_DELETION_PREFIX = "habitflow_account_deleting_";
 
 function LoadingShell({ title, subtitle }: { title: string; subtitle: string }) {
   return (
@@ -96,6 +101,30 @@ export default function Home() {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [selectedDateKey, setSelectedDateKey] = useState(todayStr());
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+
+  useEffect(() => {
+    if (user) return;
+
+    if (typeof window !== "undefined") {
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < window.sessionStorage.length; i += 1) {
+        const key = window.sessionStorage.key(i);
+        if (key && key.startsWith(ACCOUNT_DELETION_PREFIX)) {
+          keysToRemove.push(key);
+        }
+      }
+      keysToRemove.forEach((key) => window.sessionStorage.removeItem(key));
+    }
+
+    setIsAddOpen(false);
+    setIsNameOpen(false);
+    setIsHistoryOpen(false);
+    setIsProfileOpen(false);
+    setEditingId(null);
+    setSelectedDateKey(todayStr());
+    setIsDeletingAccount(false);
+  }, [user]);
 
   const stripEntries = useMemo(() => {
     const today = new Date();
@@ -259,6 +288,46 @@ export default function Home() {
     setIsAddOpen(true);
   };
 
+  const handleDeleteAccount = async () => {
+    if (!user || isDeletingAccount) return;
+
+    const signedInAt = user.metadata.lastSignInTime ? new Date(user.metadata.lastSignInTime).getTime() : 0;
+    const recentlySignedIn = signedInAt > 0 && Date.now() - signedInAt < 5 * 60 * 1000;
+
+    if (!recentlySignedIn) {
+      showToast("!", "For safety, please log out and sign in again before deleting your account.", "warning");
+      return;
+    }
+
+    const confirmed = window.confirm("Delete your account and all habits permanently? This cannot be undone.");
+    if (!confirmed) return;
+
+    setIsDeletingAccount(true);
+    const deletionKey = `${ACCOUNT_DELETION_PREFIX}${user.uid}`;
+
+    try {
+      window.sessionStorage.setItem(deletionKey, "1");
+      const habitsRef = collection(db, "users", user.uid, "habits");
+      const habitsSnapshot = await getDocs(habitsRef);
+      const batch = writeBatch(db);
+
+      habitsSnapshot.forEach((habitDoc) => {
+        batch.delete(habitDoc.ref);
+      });
+
+      batch.delete(doc(db, "users", user.uid));
+      await batch.commit();
+      await deleteCurrentUserAccount();
+      showToast("✓", "Your account was deleted.", "success");
+    } catch (error) {
+      window.sessionStorage.removeItem(deletionKey);
+      console.error("Failed to delete account:", error);
+      showToast("!", error instanceof Error ? error.message : "Could not delete your account.", "error");
+    } finally {
+      setIsDeletingAccount(false);
+    }
+  };
+
   return (
     <>
       <ToastContainer />
@@ -363,6 +432,7 @@ export default function Home() {
           setIsProfileOpen(false);
           setIsNameOpen(true);
         }}
+        onDeleteAccount={() => { void handleDeleteAccount(); }}
         name={state.name}
         email={state.email}
         photoURL={state.photoURL}
@@ -370,6 +440,7 @@ export default function Home() {
         levelXp={state.player.xp}
         totalXp={state.player.totalXp}
         stats={profileStats}
+        isDeletingAccount={isDeletingAccount}
       />
       <HistoryModal
         isOpen={isHistoryOpen}

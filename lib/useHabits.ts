@@ -123,6 +123,7 @@ const XP_PER_LEVEL = 100;
 const STREAK_MILESTONES = [7, 14, 21, 30, 60, 100];
 const LEGACY_STORAGE_KEY = 'habitflow_v3_next';
 const MIGRATION_DECISION_PREFIX = 'habitflow_migration_seen_';
+const ACCOUNT_DELETION_PREFIX = 'habitflow_account_deleting_';
 const SAVE_FEEDBACK_DELAY_MS = 1400;
 
 const defaultPlayerState: PlayerState = { xp: 0, totalXp: 0, level: 1 };
@@ -329,6 +330,9 @@ export function useHabits() {
     const userDocRef = doc(db, 'users', user.uid);
     const habitsColRef = collection(db, 'users', user.uid, 'habits');
     const migrationDecisionKey = `${MIGRATION_DECISION_PREFIX}${user.uid}`;
+    const accountDeletionKey = `${ACCOUNT_DELETION_PREFIX}${user.uid}`;
+    const isDeletionInProgress = () =>
+      typeof window !== 'undefined' && window.sessionStorage.getItem(accountDeletionKey) === '1';
 
     setBootStatus('loading');
     setErrorState(null);
@@ -355,16 +359,21 @@ export function useHabits() {
       );
     };
 
-    void bootstrapProfile().catch((error) => {
-      console.error('Failed to bootstrap profile:', error);
-      setBootStatus('error');
-      setErrorState(buildErrorState('bootstrap', error, 'Could not prepare your habitly profile.', 'Retry loading'));
-    });
+    if (!isDeletionInProgress()) {
+      void bootstrapProfile().catch((error) => {
+        console.error('Failed to bootstrap profile:', error);
+        setBootStatus('error');
+        setErrorState(buildErrorState('bootstrap', error, 'Could not prepare your habitly profile.', 'Retry loading'));
+      });
+    }
 
     const unsubUser = onSnapshot(
       userDocRef,
       async (snapshot) => {
         if (!snapshot.exists()) {
+          if (isDeletionInProgress()) {
+            return;
+          }
           try {
             await bootstrapProfile();
           } catch (error) {
@@ -380,7 +389,7 @@ export function useHabits() {
           ? data.name
           : deriveNameFromAuth(user);
 
-        if (!data.name || !data.name.trim()) {
+        if ((!data.name || !data.name.trim()) && !isDeletionInProgress()) {
           void setDoc(
             userDocRef,
             {

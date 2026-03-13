@@ -3,7 +3,8 @@ import {
   signInWithPopup, 
   signOut,
   createUserWithEmailAndPassword,
-  signInWithEmailAndPassword
+  signInWithEmailAndPassword,
+  deleteUser,
 } from "firebase/auth";
 import { auth } from "./firebase";
 
@@ -46,4 +47,12 @@ export const logout = async () => {
     console.error("Error signing out:", error);
     throw error;
   }
+};
+
+export const deleteCurrentUserAccount = async () => {
+  if (!auth.currentUser) {
+    throw new Error("No signed-in user to delete.");
+  }
+
+  await deleteUser(auth.currentUser);
 };
