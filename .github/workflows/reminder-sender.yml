@@ -1,3 +1,4 @@
+# GitHub occasionally needs a fresh workflow revision before schedule events start appearing.
 name: Reminder Sender
 
 on:
