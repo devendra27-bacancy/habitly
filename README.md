@@ -62,7 +62,8 @@ firebase deploy --only firestore:rules
 - Add these GitHub Actions secrets:
   - `FIREBASE_SERVICE_ACCOUNT_JSON`
   - `FIREBASE_PROJECT_ID`
-- The workflow lives in [.github/workflows/reminder-sender.yml](/D:/Anti/habitflow-next/.github/workflows/reminder-sender.yml) and supports both scheduled runs and manual dispatch
+- The workflow lives in [.github/workflows/reminder-sender.yml](/D:/Anti/habitflow-next/.github/workflows/reminder-sender.yml)
+- Recommended production trigger: `cron-job.org` calling the GitHub Actions `workflow_dispatch` API every 5 minutes
 - Local manual testing:
 
 ```bash
@@ -88,5 +89,4 @@ npm run build
 - XP, streak, completion history, and level changes are written atomically so progression stays consistent after refresh
 - Local legacy data can be migrated into Firebase on first login
 - Web push reminder opt-in is handled per browser, with tokens stored under `users/{uid}/devices`
-- Reminder scheduling and payload details are documented in [docs/notifications.md](/D:/Anti/habitflow-next/docs/notifications.md)
-- GitHub Actions cron is not exact-to-the-minute, so reminder delivery should be expected within a few minutes of the scheduled time
+- Reminder scheduling and exact `cron-job.org` request details are documented in [docs/notifications.md](/D:/Anti/habitflow-next/docs/notifications.md)

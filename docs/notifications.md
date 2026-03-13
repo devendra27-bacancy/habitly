@@ -62,28 +62,78 @@ The backend sender lives in [scripts/reminder-service.js](/D:/Anti/habitflow-nex
 
 It does this:
 
-1. Runs every 5 minutes from GitHub Actions.
-2. Reads users where `notificationSettings.enabled == true`.
-3. Converts the current UTC time into each user timezone.
-4. Finds habits in `users/{uid}/habits` with the matching `reminderTime`.
-5. Filters by scheduled weekday and habit `createdAt`.
-6. Loads active browser tokens from `users/{uid}/devices`.
-7. Sends one grouped notification per user per time slot.
-8. Writes a dedupe marker to `users/{uid}/reminderDispatches/{date_time}`.
-9. Removes dead tokens when FCM reports invalid registrations.
-10. Supports manual targeting with `--dry-run`, `--user-id`, and `--at=ISO_TIMESTAMP`.
+1. Reads users where `notificationSettings.enabled == true`.
+2. Converts the current UTC time into each user timezone.
+3. Finds habits in `users/{uid}/habits` with the matching `reminderTime`.
+4. Filters by scheduled weekday and habit `createdAt`.
+5. Loads active browser tokens from `users/{uid}/devices`.
+6. Sends one grouped notification per user per time slot.
+7. Writes a dedupe marker to `users/{uid}/reminderDispatches/{date_time}`.
+8. Removes dead tokens when FCM reports invalid registrations.
+9. Supports manual targeting with `--dry-run`, `--user-id`, and `--at=ISO_TIMESTAMP`.
 
-## GitHub Actions setup
+## Recommended production trigger
+
+Use `cron-job.org` to call the GitHub Actions `workflow_dispatch` API every 5 minutes.
+
+Why:
+
+- More reliable than GitHub's built-in scheduled workflows for reminder timing
+- Still free for this use case
+- Reuses the working GitHub Actions runner and existing reminder script
+
+## GitHub setup
 
 Add these repository secrets:
 
 - `FIREBASE_SERVICE_ACCOUNT_JSON`
 - `FIREBASE_PROJECT_ID`
 
-The workflow supports:
+Create a GitHub token for `cron-job.org`:
 
-- `schedule`: every 5 minutes
-- `workflow_dispatch`: optional `dry_run`, `user_id`, and `at` inputs
+- Recommended: fine-grained personal access token
+- Repository access: `habitly`
+- Permissions:
+  - `Actions: Read and write`
+  - `Contents: Read-only`
+
+## cron-job.org request config
+
+Create a job that runs every 5 minutes.
+
+### URL
+
+```text
+https://api.github.com/repos/devendra27-bacancy/habitly/actions/workflows/reminder-sender.yml/dispatches
+```
+
+### Method
+
+```text
+POST
+```
+
+### Headers
+
+```text
+Accept: application/vnd.github+json
+Authorization: Bearer YOUR_GITHUB_TOKEN
+X-GitHub-Api-Version: 2022-11-28
+Content-Type: application/json
+```
+
+### Request body
+
+```json
+{
+  "ref": "master",
+  "inputs": {
+    "dry_run": "false",
+    "user_id": "",
+    "at": ""
+  }
+}
+```
 
 ## Manual testing
 
@@ -92,10 +142,6 @@ npm run reminders:run -- --dry-run
 npm run reminders:run -- --dry-run --user-id=YOUR_USER_ID
 npm run reminders:run -- --dry-run --at=2026-03-13T08:00:00.000Z
 ```
-
-## Timing note
-
-GitHub Actions cron is not exact-to-the-minute. Reminder delivery should be treated as "within the next few minutes," not second-perfect.
 
 ## Payload suggestion
 

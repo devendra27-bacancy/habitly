@@ -3,6 +3,7 @@
 const admin = require("firebase-admin");
 
 let appInstance = null;
+const DEFAULT_APP_ORIGIN = "https://habitly.web.app";
 
 function getRequiredEnv(name) {
   const value = process.env[name];
@@ -104,6 +105,19 @@ function buildDispatchId(localDate, slotTime) {
   return `${localDate}_${slotTime.replace(":", "-")}`;
 }
 
+function getAppOrigin() {
+  const rawOrigin = process.env.APP_ORIGIN || process.env.NEXT_PUBLIC_APP_ORIGIN || DEFAULT_APP_ORIGIN;
+  return rawOrigin.replace(/\/+$/, "");
+}
+
+function getNotificationBranding() {
+  const origin = getAppOrigin();
+  return {
+    icon: `${origin}/web-app-manifest-192x192.png`,
+    badge: `${origin}/favicon-96x96.png`,
+  };
+}
+
 async function createDispatchMarker(db, userId, dispatchId, payload, dryRun) {
   if (dryRun) {
     return;
@@ -201,6 +215,7 @@ async function sendReminderForUser({ db, messaging, userDoc, now, dryRun }) {
   }
 
   const copy = buildDispatchMessage(dueHabits);
+  const branding = getNotificationBranding();
   const message = {
     tokens,
     notification: {
@@ -208,6 +223,11 @@ async function sendReminderForUser({ db, messaging, userDoc, now, dryRun }) {
       body: copy.body,
     },
     webpush: {
+      notification: {
+        icon: branding.icon,
+        badge: branding.badge,
+        tag: dispatchId,
+      },
       fcmOptions: {
         link: "/",
       },

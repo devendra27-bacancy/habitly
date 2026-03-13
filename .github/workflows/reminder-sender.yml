@@ -1,9 +1,6 @@
-# GitHub occasionally needs a fresh workflow revision before schedule events start appearing.
 name: Reminder Sender
 
 on:
-  schedule:
-    - cron: "*/5 * * * *"
   workflow_dispatch:
     inputs:
       dry_run:
@@ -27,6 +24,8 @@ concurrency:
 jobs:
   send-reminders:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -53,15 +52,13 @@ jobs:
         shell: bash
         run: |
           args=()
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            if [[ "${{ inputs.dry_run }}" == "true" ]]; then
-              args+=("--dry-run")
-            fi
-            if [[ -n "${{ inputs.user_id }}" ]]; then
-              args+=("--user-id=${{ inputs.user_id }}")
-            fi
-            if [[ -n "${{ inputs.at }}" ]]; then
-              args+=("--at=${{ inputs.at }}")
-            fi
+          if [[ "${{ inputs.dry_run }}" == "true" ]]; then
+            args+=("--dry-run")
+          fi
+          if [[ -n "${{ inputs.user_id }}" ]]; then
+            args+=("--user-id=${{ inputs.user_id }}")
+          fi
+          if [[ -n "${{ inputs.at }}" ]]; then
+            args+=("--at=${{ inputs.at }}")
           fi
           node scripts/reminder-runner.js "${args[@]}"
