@@ -21,6 +21,7 @@ import { useHabits, todayStr, isScheduledToday, Habit } from "../lib/useHabits";
 import { localDateStr } from "../lib/dates";
 import { deleteCurrentUserAccount } from "../lib/auth";
 import { db } from "../lib/firebase";
+import { useNotifications } from "../lib/useNotifications";
 import { showToast } from "../components/ToastContainer";
 import { useAuth } from "../components/AuthProvider";
 import Login from "../components/Login";
@@ -94,6 +95,15 @@ export default function Home() {
     migrateLocalData,
     dismissLocalMigration,
   } = useHabits();
+  const {
+    isSupported: notificationsSupported,
+    permission: notificationPermission,
+    settings: notificationSettings,
+    isBusy: notificationBusy,
+    error: notificationError,
+    enableNotifications,
+    disableNotifications,
+  } = useNotifications();
 
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isNameOpen, setIsNameOpen] = useState(false);
@@ -308,11 +318,23 @@ export default function Home() {
     try {
       window.sessionStorage.setItem(deletionKey, "1");
       const habitsRef = collection(db, "users", user.uid, "habits");
+      const devicesRef = collection(db, "users", user.uid, "devices");
+      const reminderDispatchesRef = collection(db, "users", user.uid, "reminderDispatches");
       const habitsSnapshot = await getDocs(habitsRef);
+      const devicesSnapshot = await getDocs(devicesRef);
+      const reminderDispatchesSnapshot = await getDocs(reminderDispatchesRef);
       const batch = writeBatch(db);
 
       habitsSnapshot.forEach((habitDoc) => {
         batch.delete(habitDoc.ref);
+      });
+
+      devicesSnapshot.forEach((deviceDoc) => {
+        batch.delete(deviceDoc.ref);
+      });
+
+      reminderDispatchesSnapshot.forEach((dispatchDoc) => {
+        batch.delete(dispatchDoc.ref);
       });
 
       batch.delete(doc(db, "users", user.uid));
@@ -433,6 +455,8 @@ export default function Home() {
           setIsNameOpen(true);
         }}
         onDeleteAccount={() => { void handleDeleteAccount(); }}
+        onEnableNotifications={() => { void enableNotifications(); }}
+        onDisableNotifications={() => { void disableNotifications(); }}
         name={state.name}
         email={state.email}
         photoURL={state.photoURL}
@@ -441,6 +465,12 @@ export default function Home() {
         totalXp={state.player.totalXp}
         stats={profileStats}
         isDeletingAccount={isDeletingAccount}
+        notificationsSupported={notificationsSupported}
+        notificationsEnabled={notificationSettings.enabled}
+        notificationPermission={notificationPermission}
+        notificationTimezone={notificationSettings.timezone}
+        notificationBusy={notificationBusy}
+        notificationError={notificationError}
       />
       <HistoryModal
         isOpen={isHistoryOpen}

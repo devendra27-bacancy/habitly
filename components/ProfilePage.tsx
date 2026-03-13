@@ -15,6 +15,8 @@ type ProfilePageProps = {
   onClose: () => void;
   onEditName: () => void;
   onDeleteAccount: () => void;
+  onEnableNotifications: () => void;
+  onDisableNotifications: () => void;
   name: string;
   email?: string;
   photoURL?: string;
@@ -23,6 +25,12 @@ type ProfilePageProps = {
   totalXp: number;
   stats: ProfileStat[];
   isDeletingAccount?: boolean;
+  notificationsSupported: boolean;
+  notificationsEnabled: boolean;
+  notificationPermission: "default" | "denied" | "granted" | "unsupported";
+  notificationTimezone: string;
+  notificationBusy?: boolean;
+  notificationError?: string | null;
 };
 
 function getInitials(name: string) {
@@ -41,6 +49,8 @@ export function ProfilePage({
   onClose,
   onEditName,
   onDeleteAccount,
+  onEnableNotifications,
+  onDisableNotifications,
   name,
   email,
   photoURL,
@@ -49,8 +59,25 @@ export function ProfilePage({
   totalXp,
   stats,
   isDeletingAccount = false,
+  notificationsSupported,
+  notificationsEnabled,
+  notificationPermission,
+  notificationTimezone,
+  notificationBusy = false,
+  notificationError = null,
 }: ProfilePageProps) {
   if (!isOpen) return null;
+
+  const permissionCopy =
+    notificationPermission === "granted"
+      ? notificationsEnabled
+        ? "Reminders are active on this browser."
+        : "Browser permission is on, but Habitly reminders are paused."
+      : notificationPermission === "denied"
+        ? "Notifications are blocked in browser settings."
+        : notificationPermission === "unsupported"
+          ? "This browser does not support web notifications."
+          : "Turn on reminders to get nudges at your habit times.";
 
   return (
     <div className="profile-shell">
@@ -97,6 +124,31 @@ export function ProfilePage({
             <div className="profile-progress-total">{totalXp} total XP</div>
             <div className="profile-progress-track">
               <div className="profile-progress-fill" style={{ width: `${Math.min(levelXp, 100)}%` }} />
+            </div>
+          </div>
+
+          <div className="profile-story-card profile-notification-card">
+            <div className="profile-story-title">Reminders</div>
+            <div className="profile-story-copy">
+              {permissionCopy}
+              {notificationsSupported ? ` Your browser timezone is ${notificationTimezone}.` : ""}
+            </div>
+            {notificationError ? <div className="profile-notification-error">{notificationError}</div> : null}
+            <div className="profile-notification-actions">
+              <button
+                className="profile-notification-button"
+                onClick={notificationsEnabled ? onDisableNotifications : onEnableNotifications}
+                disabled={notificationBusy || !notificationsSupported}
+              >
+                {notificationBusy
+                  ? "Updating reminders..."
+                  : notificationsEnabled
+                    ? "Turn off reminders"
+                    : "Turn on reminders"}
+              </button>
+              <div className={`profile-notification-chip ${notificationsEnabled ? "active" : ""}`}>
+                {notificationsEnabled ? "Active on this device" : "Currently off"}
+              </div>
             </div>
           </div>
 
