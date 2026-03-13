@@ -83,7 +83,14 @@ async function getMessagingSupport() {
 }
 
 async function registerMessagingServiceWorker() {
-  return navigator.serviceWorker.register(buildMessagingServiceWorkerUrl(), { scope: "/" });
+  const registration = await navigator.serviceWorker.register(buildMessagingServiceWorkerUrl(), { scope: "/" });
+
+  if (registration.active) {
+    return registration;
+  }
+
+  await navigator.serviceWorker.ready;
+  return navigator.serviceWorker.getRegistration("/") ?? registration;
 }
 
 export function useNotifications(): UseNotificationsResult {

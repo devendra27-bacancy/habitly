@@ -16,21 +16,7 @@ const hasConfig = Object.values(firebaseConfig).every(Boolean);
 
 if (hasConfig) {
   firebase.initializeApp(firebaseConfig);
-  const messaging = firebase.messaging();
-
-  messaging.onBackgroundMessage((payload) => {
-    const title = payload.notification?.title || "habitly reminder";
-    const options = {
-      body: payload.notification?.body || "Your next habit is ready.",
-      icon: "/apple-touch-icon.png",
-      badge: "/favicon-96x96.png",
-      data: {
-        link: payload.fcmOptions?.link || payload.data?.link || "/",
-      },
-    };
-
-    self.registration.showNotification(title, options);
-  });
+  firebase.messaging();
 }
 
 self.addEventListener("notificationclick", (event) => {
