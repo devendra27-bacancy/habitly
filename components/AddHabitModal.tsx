@@ -1,10 +1,59 @@
 "use client";
 
-import { useEffect, useState } from 'react';
-import { Habit, ALL_DAYS, DAY_LABELS } from '../lib/useHabits';
+import { useEffect, useState } from "react";
+import { Habit, ALL_DAYS, DAY_LABELS } from "../lib/useHabits";
 
-const EMOJIS = ['🚶', '📖', '💧', '🏃', '🧘', '😴', '🥗', '💪', '🎯', '✍️', '🎨', '🎵', '🌿', '🧠', '🏊', '🚴', '🌅', '🍎', '☕', '🏋️', '📝', '🌸', '🧹', '🎮', '🤸', '🛁', '📱', '👟', '💊'];
-const COLORS = ['#3d8b4e', '#4ecdc4', '#ff6b9d', '#ffd166', '#c084fc', '#ff9f43', '#45b7d1', '#96e6a1', '#f093fb', '#4facfe', '#f5576c', '#43e97b'];
+const EMOJIS = [
+  "🚶",
+  "📖",
+  "💧",
+  "🏃",
+  "🧘",
+  "😴",
+  "🥗",
+  "💪",
+  "🎯",
+  "✍️",
+  "🎨",
+  "🎵",
+  "🌿",
+  "🧠",
+  "🏊",
+  "🚴",
+  "🌅",
+  "🍎",
+  "☕",
+  "🏋️",
+  "📝",
+  "🌸",
+  "🧹",
+  "🎮",
+  "🤸",
+  "🛁",
+  "📱",
+  "👟",
+  "💊",
+];
+
+const COLORS = [
+  "#3d8b4e",
+  "#4ecdc4",
+  "#ff6b9d",
+  "#ffd166",
+  "#c084fc",
+  "#ff9f43",
+  "#45b7d1",
+  "#96e6a1",
+  "#f093fb",
+  "#4facfe",
+  "#f5576c",
+  "#43e97b",
+];
+
+const HOUR_OPTIONS = Array.from({ length: 12 }, (_, index) => String(index + 1));
+const MINUTE_OPTIONS = ["00", "15", "30", "45"];
+const PERIOD_OPTIONS = ["AM", "PM"] as const;
+type PeriodOption = (typeof PERIOD_OPTIONS)[number];
 
 type AddHabitModalProps = {
   isOpen: boolean;
@@ -16,6 +65,43 @@ type AddHabitModalProps = {
   isDeleting?: boolean;
 };
 
+function parseTimeForPicker(time: string) {
+  if (!time) {
+    return { hour: "8", minute: "00", period: "AM" as PeriodOption };
+  }
+
+  const [rawHour, rawMinute] = time.split(":");
+  const parsedHour = Number(rawHour);
+  const parsedMinute = Number(rawMinute);
+
+  if (!Number.isFinite(parsedHour) || !Number.isFinite(parsedMinute)) {
+    return { hour: "8", minute: "00", period: "AM" as PeriodOption };
+  }
+
+  const period: PeriodOption = parsedHour >= 12 ? "PM" : "AM";
+  const hour12 = parsedHour % 12 || 12;
+
+  return {
+    hour: String(hour12),
+    minute: String(parsedMinute).padStart(2, "0"),
+    period,
+  };
+}
+
+function toTwentyFourHourTime(hour: string, minute: string, period: PeriodOption) {
+  const parsedHour = Number(hour);
+  if (!Number.isFinite(parsedHour)) {
+    return "";
+  }
+
+  let hour24 = parsedHour % 12;
+  if (period === "PM") {
+    hour24 += 12;
+  }
+
+  return `${String(hour24).padStart(2, "0")}:${minute}`;
+}
+
 export function AddHabitModal({
   isOpen,
   onClose,
@@ -25,30 +111,38 @@ export function AddHabitModal({
   isSaving = false,
   isDeleting = false,
 }: AddHabitModalProps) {
-  const [name, setName] = useState('');
-  const [time, setTime] = useState('');
+  const [name, setName] = useState("");
+  const [timeHour, setTimeHour] = useState("8");
+  const [timeMinute, setTimeMinute] = useState("00");
+  const [timePeriod, setTimePeriod] = useState<PeriodOption>("AM");
   const [days, setDays] = useState<number[]>([...ALL_DAYS]);
   const [emoji, setEmoji] = useState(EMOJIS[0]);
   const [color, setColor] = useState(COLORS[0]);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    if (isOpen) {
-      if (editData) {
-        setName(editData.name);
-        setTime(editData.reminderTime || '');
-        setDays([...(editData.daysOfWeek || ALL_DAYS)]);
-        setEmoji(editData.emoji);
-        setColor(editData.color);
-      } else {
-        setName('');
-        setTime('');
-        setDays([...ALL_DAYS]);
-        setEmoji(EMOJIS[0]);
-        setColor(COLORS[0]);
-      }
-      setError('');
+    if (!isOpen) return;
+
+    if (editData) {
+      const pickerTime = parseTimeForPicker(editData.reminderTime || "");
+      setName(editData.name);
+      setTimeHour(pickerTime.hour);
+      setTimeMinute(MINUTE_OPTIONS.includes(pickerTime.minute) ? pickerTime.minute : "00");
+      setTimePeriod(pickerTime.period);
+      setDays([...(editData.daysOfWeek || ALL_DAYS)]);
+      setEmoji(editData.emoji);
+      setColor(editData.color);
+    } else {
+      setName("");
+      setTimeHour("8");
+      setTimeMinute("00");
+      setTimePeriod("AM");
+      setDays([...ALL_DAYS]);
+      setEmoji(EMOJIS[0]);
+      setColor(COLORS[0]);
     }
+
+    setError("");
   }, [isOpen, editData]);
 
   const handleSubmit = (event: React.FormEvent) => {
@@ -56,19 +150,19 @@ export function AddHabitModal({
     const finalName = name.trim();
 
     if (!finalName) {
-      setError('Give this habit a name so it can be saved.');
+      setError("Give this habit a name so it can be saved.");
       return;
     }
 
     if (days.length === 0) {
-      setError('Select at least one active day.');
+      setError("Select at least one active day.");
       return;
     }
 
-    setError('');
+    setError("");
     onSave(editData ? editData.id : null, {
       name: finalName,
-      reminderTime: time,
+      reminderTime: toTwentyFourHourTime(timeHour, timeMinute, timePeriod),
       daysOfWeek: [...days].sort((a, b) => a - b),
       emoji,
       color,
@@ -79,24 +173,29 @@ export function AddHabitModal({
     if (days.includes(dow)) {
       if (days.length === 1) return;
       setDays((current) => current.filter((item) => item !== dow));
-    } else {
-      setDays((current) => [...current, dow]);
+      return;
     }
+
+    setDays((current) => [...current, dow]);
   };
 
   if (!isOpen) return null;
 
   return (
-    <div className="modal-overlay show" onClick={(event) => { if (event.target === event.currentTarget && !isSaving && !isDeleting) onClose(); }}>
+    <div
+      className="modal-overlay show"
+      onClick={(event) => {
+        if (event.target === event.currentTarget && !isSaving && !isDeleting) onClose();
+      }}
+    >
       <div className="modal">
-        <div className="modal-handle" />
-        <div className="modal-title">{editData ? 'Edit Habit ✏️' : 'New Habit ✨'}</div>
+        <div className="modal-title">{editData ? "Edit Habit ✍️" : "New Habit ✨"}</div>
 
         <form onSubmit={handleSubmit}>
           <div className="form-group">
             <label className="form-label">Habit Name</label>
             <input
-              className={`form-input ${error ? 'input-error' : ''}`}
+              className={`form-input ${error ? "input-error" : ""}`}
               value={name}
               onChange={(event) => setName(event.target.value)}
               placeholder="e.g. Go for a walk"
@@ -109,13 +208,45 @@ export function AddHabitModal({
           <div className="form-row">
             <div className="form-group">
               <label className="form-label">Reminder Time</label>
-              <input
-                type="time"
-                className="form-input form-time"
-                value={time}
-                onChange={(event) => setTime(event.target.value)}
-                disabled={isSaving || isDeleting}
-              />
+              <div className="time-picker">
+                <select
+                  className="form-input form-time-select"
+                  value={timeHour}
+                  onChange={(event) => setTimeHour(event.target.value)}
+                  disabled={isSaving || isDeleting}
+                >
+                  {HOUR_OPTIONS.map((hour) => (
+                    <option key={hour} value={hour}>
+                      {hour}
+                    </option>
+                  ))}
+                </select>
+                <span className="time-picker-separator">:</span>
+                <select
+                  className="form-input form-time-select"
+                  value={timeMinute}
+                  onChange={(event) => setTimeMinute(event.target.value)}
+                  disabled={isSaving || isDeleting}
+                >
+                  {MINUTE_OPTIONS.map((minute) => (
+                    <option key={minute} value={minute}>
+                      {minute}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  className="form-input form-time-period"
+                  value={timePeriod}
+                  onChange={(event) => setTimePeriod(event.target.value as PeriodOption)}
+                  disabled={isSaving || isDeleting}
+                >
+                  {PERIOD_OPTIONS.map((period) => (
+                    <option key={period} value={period}>
+                      {period}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
           </div>
 
@@ -126,7 +257,7 @@ export function AddHabitModal({
                 <button
                   key={dow}
                   type="button"
-                  className={`day-btn ${days.includes(dow) ? 'active' : ''}`}
+                  className={`day-btn ${days.includes(dow) ? "active" : ""}`}
                   onClick={() => toggleDay(dow)}
                   disabled={isSaving || isDeleting}
                 >
@@ -143,7 +274,7 @@ export function AddHabitModal({
                 <button
                   key={entry}
                   type="button"
-                  className={`emoji-opt ${entry === emoji ? 'selected' : ''}`}
+                  className={`emoji-opt ${entry === emoji ? "selected" : ""}`}
                   onClick={() => setEmoji(entry)}
                   disabled={isSaving || isDeleting}
                 >
@@ -160,29 +291,40 @@ export function AddHabitModal({
                 <button
                   key={entry}
                   type="button"
-                  className={`color-opt ${entry === color ? 'selected' : ''}`}
+                  className={`color-opt ${entry === color ? "selected" : ""}`}
                   style={{ background: entry }}
                   onClick={() => setColor(entry)}
                   disabled={isSaving || isDeleting}
+                  aria-label={`Choose ${entry} color`}
                 />
               ))}
             </div>
           </div>
 
           <button type="submit" className="modal-submit" disabled={isSaving || isDeleting}>
-            {isDeleting ? 'Deleting...' : isSaving ? 'Saving...' : editData ? 'Save Changes ✓' : 'Add Habit 🌱'}
+            {isDeleting ? "Deleting..." : isSaving ? "Saving..." : editData ? "Save Changes ✓" : "Add Habit 🌱"}
           </button>
 
-          {editData && (
-            <div className="delete-confirm" style={{ display: 'flex' }}>
-              <button type="button" className="btn-del" onClick={() => onDelete(editData.id)} disabled={isSaving || isDeleting}>
-                {isDeleting ? 'Deleting...' : '🗑 Delete'}
+          {editData ? (
+            <div className="delete-confirm" style={{ display: "flex" }}>
+              <button
+                type="button"
+                className="btn-del"
+                onClick={() => onDelete(editData.id)}
+                disabled={isSaving || isDeleting}
+              >
+                {isDeleting ? "Deleting..." : "🗑 Delete"}
               </button>
-              <button type="button" className="btn-cancel" onClick={onClose} disabled={isSaving || isDeleting}>
+              <button
+                type="button"
+                className="btn-cancel"
+                onClick={onClose}
+                disabled={isSaving || isDeleting}
+              >
                 Cancel
               </button>
             </div>
-          )}
+          ) : null}
         </form>
       </div>
     </div>
