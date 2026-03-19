@@ -4,7 +4,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   addDoc,
   collection,
-  deleteDoc,
   doc,
   getDocs,
   limit,
@@ -256,6 +255,14 @@ function removeId(list: string[], id: string) {
 
 function addId(list: string[], id: string) {
   return list.includes(id) ? list : [...list, id];
+}
+
+function stripHabitFromCompletionHistory(history: CompletionHistory, habitId: string): CompletionHistory {
+  return Object.fromEntries(
+    Object.entries(history)
+      .map(([date, ids]) => [date, ids.filter((id) => id !== habitId)] as const)
+      .filter(([, ids]) => ids.length > 0),
+  );
 }
 
 export function useHabits() {
@@ -578,18 +585,31 @@ export function useHabits() {
 
     const previousHabit = state.habits.find((habit) => habit.id === id);
     if (!previousHabit) return false;
+    const previousHistory = state.completionHistory;
+    const nextHistory = stripHabitFromCompletionHistory(previousHistory, id);
 
     beginSync();
     updatePending((current) => ({ ...current, deletingIds: addId(current.deletingIds, id) }));
-    setState((prev) => ({ ...prev, habits: prev.habits.filter((habit) => habit.id !== id) }));
+    setState((prev) => ({
+      ...prev,
+      habits: prev.habits.filter((habit) => habit.id !== id),
+      completionHistory: stripHabitFromCompletionHistory(prev.completionHistory, id),
+    }));
 
     try {
-      await deleteDoc(doc(db, 'users', user.uid, 'habits', id));
+      const batch = writeBatch(db);
+      batch.delete(doc(db, 'users', user.uid, 'habits', id));
+      batch.set(doc(db, 'users', user.uid), { completionHistory: nextHistory }, { merge: true });
+      await batch.commit();
       showToast('🗑️', 'Habit deleted', 'info');
       markSaved();
       return true;
     } catch (error) {
-      setState((prev) => ({ ...prev, habits: [previousHabit, ...prev.habits].sort((a, b) => b.createdAt.localeCompare(a.createdAt)) }));
+      setState((prev) => ({
+        ...prev,
+        habits: [previousHabit, ...prev.habits].sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+        completionHistory: previousHistory,
+      }));
       showToast('⚠️', extractErrorMessage(error, 'Could not delete your habit.'), 'error');
       endSyncWithError(error, 'Could not delete your habit.');
       return false;
