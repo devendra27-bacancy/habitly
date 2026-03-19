@@ -278,8 +278,82 @@ button:disabled {
 }
 
 /* ===== WEEK STRIP ===== */
-.week-strip {
+.week-strip-wrap {
   padding: 0 20px 16px;
+}
+
+.week-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 10px;
+}
+
+.week-toolbar-copy {
+  min-width: 0;
+}
+
+.week-toolbar-kicker {
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #728475;
+  margin-bottom: 4px;
+}
+
+.week-toolbar-label {
+  font-family: var(--font-fredoka), cursive;
+  font-size: 22px;
+  color: #2f4334;
+  line-height: 1.05;
+}
+
+.week-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.week-nav-btn,
+.week-today-btn {
+  border: none;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.68);
+  color: #304a36;
+  font-weight: 900;
+  cursor: pointer;
+  box-shadow: var(--card-shadow);
+}
+
+.week-nav-btn {
+  width: 38px;
+  height: 38px;
+  font-size: 18px;
+}
+
+.week-today-btn {
+  padding: 10px 14px;
+  font-size: 12px;
+}
+
+.week-input {
+  min-width: 136px;
+  border: none;
+  border-radius: 999px;
+  padding: 10px 14px;
+  background: rgba(255,255,255,0.72);
+  color: #304a36;
+  font-family: var(--font-nunito), sans-serif;
+  font-size: 13px;
+  font-weight: 800;
+  box-shadow: var(--card-shadow);
+}
+
+.week-strip {
   display: flex; gap: 6px; overflow-x: auto;
   scrollbar-width: none;
 }
@@ -1525,6 +1599,20 @@ button:disabled {
 
   .history-summary {
     grid-template-columns: 1fr;
+  }
+
+  .week-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .week-toolbar-actions {
+    justify-content: stretch;
+  }
+
+  .week-input {
+    flex: 1;
+    width: 100%;
   }
 
   .history-day-head {

@@ -68,6 +68,45 @@ function habitWasActiveOnDate(habit: Habit, dateKey: string) {
   return habit.createdAt <= dateKey;
 }
 
+function getStartOfWeek(date: Date) {
+  const result = new Date(date);
+  const mondayOffset = (result.getDay() + 6) % 7;
+  result.setDate(result.getDate() - mondayOffset);
+  result.setHours(0, 0, 0, 0);
+  return result;
+}
+
+function parseDateKey(dateKey: string) {
+  const [year, month, day] = dateKey.split("-").map(Number);
+  return new Date(year, month - 1, day);
+}
+
+function addDays(date: Date, amount: number) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + amount);
+  return next;
+}
+
+function toWeekInputValue(weekStart: Date) {
+  const thursday = addDays(getStartOfWeek(weekStart), 3);
+  const year = thursday.getFullYear();
+  const firstThursday = new Date(year, 0, 4);
+  const firstWeekStart = getStartOfWeek(firstThursday);
+  const diffDays = Math.round((getStartOfWeek(weekStart).getTime() - firstWeekStart.getTime()) / (1000 * 60 * 60 * 24));
+  const weekNumber = Math.floor(diffDays / 7) + 1;
+  return `${year}-W${String(weekNumber).padStart(2, "0")}`;
+}
+
+function fromWeekInputValue(weekValue: string) {
+  const match = /^(\d{4})-W(\d{2})$/.exec(weekValue);
+  if (!match) return null;
+  const year = Number(match[1]);
+  const week = Number(match[2]);
+  const firstThursday = new Date(year, 0, 4);
+  const firstWeekStart = getStartOfWeek(firstThursday);
+  return addDays(firstWeekStart, (week - 1) * 7);
+}
+
 export default function Home() {
   const { user, loading } = useAuth();
   const {
@@ -108,6 +147,7 @@ export default function Home() {
   const [isNameOpen, setIsNameOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [displayWeekStartKey, setDisplayWeekStartKey] = useState(localDateStr(getStartOfWeek(new Date())));
   const [selectedDateKey, setSelectedDateKey] = useState(todayStr());
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
 
@@ -129,20 +169,34 @@ export default function Home() {
     setIsNameOpen(false);
     setIsProfileOpen(false);
     setEditingId(null);
+    setDisplayWeekStartKey(localDateStr(getStartOfWeek(new Date())));
     setSelectedDateKey(todayStr());
     setIsDeletingAccount(false);
   }, [user]);
 
-  const stripEntries = useMemo(() => {
-    const today = new Date();
-    const mondayOffset = ((today.getDay() + 6) % 7);
-    const monday = new Date(today);
-    monday.setDate(today.getDate() - mondayOffset);
-    const todayKey = localDateStr(today);
+  const todayKey = todayStr();
+  const todayDate = useMemo(() => parseDateKey(todayKey), [todayKey]);
+  const displayWeekStart = useMemo(() => parseDateKey(displayWeekStartKey), [displayWeekStartKey]);
 
+  const updateDisplayedWeek = (nextWeekStart: Date) => {
+    const normalizedNextWeekStart = getStartOfWeek(nextWeekStart);
+    const previousWeekStart = displayWeekStart;
+    const selectedDate = parseDateKey(selectedDateKey);
+    const weekdayOffset = Math.max(
+      0,
+      Math.min(
+        6,
+        Math.round((selectedDate.getTime() - previousWeekStart.getTime()) / (1000 * 60 * 60 * 24)),
+      ),
+    );
+    const nextSelectedDate = addDays(normalizedNextWeekStart, weekdayOffset);
+    setDisplayWeekStartKey(localDateStr(normalizedNextWeekStart));
+    setSelectedDateKey(localDateStr(nextSelectedDate));
+  };
+
+  const stripEntries = useMemo(() => {
     return Array.from({ length: 7 }, (_, index) => {
-      const date = new Date(monday);
-      date.setDate(monday.getDate() + index);
+      const date = addDays(displayWeekStart, index);
       const dateKey = localDateStr(date);
       const dayOfWeek = date.getDay();
       const completedIds = new Set(state.completionHistory[dateKey] || []);
@@ -154,7 +208,7 @@ export default function Home() {
       );
       const done = scheduled.filter((habit) => completedIds.has(habit.id));
       const isFuture = dateKey > todayKey;
-      const diffDays = Math.round((date.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+      const diffDays = Math.round((date.getTime() - todayDate.getTime()) / (1000 * 60 * 60 * 24));
       const missed = isFuture || dateKey === todayKey ? [] : scheduled.filter((habit) => !completedIds.has(habit.id));
 
       return {
@@ -173,7 +227,7 @@ export default function Home() {
         isFuture,
       };
     });
-  }, [state.completionHistory, state.habits]);
+  }, [displayWeekStart, state.completionHistory, state.habits, todayDate, todayKey]);
 
   const weekDays = useMemo(() => {
     return stripEntries.map((entry) => ({
@@ -190,6 +244,18 @@ export default function Home() {
     () => stripEntries.find((entry) => entry.dateKey === selectedDateKey) ?? stripEntries.find((entry) => entry.isToday) ?? null,
     [selectedDateKey, stripEntries],
   );
+  const weekInputValue = useMemo(() => toWeekInputValue(displayWeekStart), [displayWeekStart]);
+  const weekLabel = useMemo(() => {
+    const weekEnd = addDays(displayWeekStart, 6);
+    const sameMonth = displayWeekStart.getMonth() === weekEnd.getMonth();
+    const monthStart = displayWeekStart.toLocaleDateString("en-US", { month: "short" });
+    const monthEnd = weekEnd.toLocaleDateString("en-US", { month: "short" });
+    const dayStart = displayWeekStart.getDate();
+    const dayEnd = weekEnd.getDate();
+    return sameMonth
+      ? `${monthStart} ${dayStart} - ${dayEnd}, ${displayWeekStart.getFullYear()}`
+      : `${monthStart} ${dayStart} - ${monthEnd} ${dayEnd}, ${weekEnd.getFullYear()}`;
+  }, [displayWeekStart]);
   const selectedScheduledHabits = selectedEntry?.scheduled ?? [];
   const selectedDoneHabits = selectedEntry?.done ?? [];
   const selectedMissedHabits = selectedEntry?.missed ?? [];
@@ -273,7 +339,7 @@ export default function Home() {
     : "Day view";
   const selectedSectionCopy = selectedEntry
     ? selectedEntry.isFuture
-      ? "Upcoming habits are scheduled here. Open one to edit or delete it before the day arrives."
+      ? ""
       : selectedEntry.isToday
         ? "Track what is still ahead today, and mark completions as you go."
         : "See what got done and what slipped on this day."
@@ -377,8 +443,21 @@ export default function Home() {
         <WeekStrip
           days={weekDays}
           selectedDateKey={selectedDateKey}
-          onSelectDate={(dateKey) => {
-            setSelectedDateKey(dateKey);
+          onSelectDate={(dateKey) => setSelectedDateKey(dateKey)}
+          weekLabel={weekLabel}
+          weekValue={weekInputValue}
+          onWeekChange={(value) => {
+            const nextWeekStart = fromWeekInputValue(value);
+            if (nextWeekStart) {
+              updateDisplayedWeek(nextWeekStart);
+            }
+          }}
+          onPreviousWeek={() => updateDisplayedWeek(addDays(displayWeekStart, -7))}
+          onNextWeek={() => updateDisplayedWeek(addDays(displayWeekStart, 7))}
+          onCurrentWeek={() => {
+            const currentWeekStart = getStartOfWeek(new Date());
+            setDisplayWeekStartKey(localDateStr(currentWeekStart));
+            setSelectedDateKey(todayKey);
           }}
         />
         <MascotArea habits={state.habits} syncStatus={syncStatus} errorState={errorState} />
@@ -503,7 +582,11 @@ export default function Home() {
           setEditingId(null);
           setIsAddOpen(true);
         }}
-        onStats={() => setSelectedDateKey(todayStr())}
+        onStats={() => {
+          const currentWeekStart = getStartOfWeek(new Date());
+          setDisplayWeekStartKey(localDateStr(currentWeekStart));
+          setSelectedDateKey(todayKey);
+        }}
         onProfile={() => setIsProfileOpen(true)}
         disabled={isBusy}
       />
