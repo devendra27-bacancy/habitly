@@ -13,11 +13,10 @@ import { NameModal } from "../components/NameModal";
 import { ProfilePage } from "../components/ProfilePage";
 import { CompleteOverlay } from "../components/CompleteOverlay";
 import { LevelUpOverlay } from "../components/LevelUpOverlay";
-import { HistoryModal } from "../components/HistoryModal";
 import { ConfettiCanvas } from "../components/ConfettiCanvas";
 import { LocalMigrationPrompt } from "../components/LocalMigrationPrompt";
 import { ToastContainer } from "../components/ToastContainer";
-import { useHabits, todayStr, isScheduledToday, Habit } from "../lib/useHabits";
+import { useHabits, todayStr, isScheduledToday, Habit, formatTime } from "../lib/useHabits";
 import { localDateStr } from "../lib/dates";
 import { deleteCurrentUserAccount } from "../lib/auth";
 import { db } from "../lib/firebase";
@@ -107,7 +106,6 @@ export default function Home() {
 
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isNameOpen, setIsNameOpen] = useState(false);
-  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [selectedDateKey, setSelectedDateKey] = useState(todayStr());
@@ -129,7 +127,6 @@ export default function Home() {
 
     setIsAddOpen(false);
     setIsNameOpen(false);
-    setIsHistoryOpen(false);
     setIsProfileOpen(false);
     setEditingId(null);
     setSelectedDateKey(todayStr());
@@ -193,6 +190,9 @@ export default function Home() {
     () => stripEntries.find((entry) => entry.dateKey === selectedDateKey) ?? stripEntries.find((entry) => entry.isToday) ?? null,
     [selectedDateKey, stripEntries],
   );
+  const selectedScheduledHabits = selectedEntry?.scheduled ?? [];
+  const selectedDoneHabits = selectedEntry?.done ?? [];
+  const selectedMissedHabits = selectedEntry?.missed ?? [];
 
   if (loading) {
     return (
@@ -261,6 +261,23 @@ export default function Home() {
     scheduledToday.length === 0
       ? 0
       : Math.round((sortedHabits.filter((habit) => habit.lastCompleted === today).length / scheduledToday.length) * 100);
+  const selectedCount = selectedEntry
+    ? selectedEntry.isFuture
+      ? selectedScheduledHabits.length
+      : selectedDoneHabits.length + selectedMissedHabits.length
+    : 0;
+  const selectedSectionTitle = selectedEntry
+    ? selectedEntry.isToday
+      ? "Today's Habits"
+      : `${selectedEntry.label}, ${selectedEntry.date}`
+    : "Day view";
+  const selectedSectionCopy = selectedEntry
+    ? selectedEntry.isFuture
+      ? "Upcoming habits are scheduled here. Open one to edit or delete it before the day arrives."
+      : selectedEntry.isToday
+        ? "Track what is still ahead today, and mark completions as you go."
+        : "See what got done and what slipped on this day."
+    : "";
 
   const profileStats = [
     { label: "Current best streak", value: `${currentBestStreak} days`, tone: "sage" as const },
@@ -362,16 +379,16 @@ export default function Home() {
           selectedDateKey={selectedDateKey}
           onSelectDate={(dateKey) => {
             setSelectedDateKey(dateKey);
-            setIsHistoryOpen(true);
           }}
         />
         <MascotArea habits={state.habits} syncStatus={syncStatus} errorState={errorState} />
 
         <div className="section-header">
-          <div className="section-title" style={{ padding: 0 }}>
-            Today&apos;s Habits
+          <div>
+            <div className="section-title" style={{ padding: 0 }}>{selectedSectionTitle}</div>
+            {selectedSectionCopy ? <div className="section-copy">{selectedSectionCopy}</div> : null}
           </div>
-          <div className="section-count">{scheduledToday.length}</div>
+          <div className="section-count">{selectedCount}</div>
         </div>
 
         {syncStatus === "error" && errorState?.scope === "mutation" ? (
@@ -387,24 +404,96 @@ export default function Home() {
               <div className="empty-title">Your garden is ready for its first habit</div>
               <div className="empty-copy">Add a routine and habitly will start tracking streaks, XP, and level-ups automatically.</div>
             </div>
-          ) : sortedHabits.length === 0 ? (
+          ) : !selectedEntry ? null : selectedEntry.isFuture ? (
+            selectedScheduledHabits.length === 0 ? (
+              <div className="empty-state rich-empty">
+                <div className="empty-title">Nothing is planned for this day</div>
+                <div className="empty-copy">Add a habit or adjust its active days if you want this day to carry more momentum.</div>
+              </div>
+            ) : (
+              selectedScheduledHabits.map((habit, index) => (
+                <div
+                  key={`${selectedEntry.dateKey}-${habit.id}-future`}
+                  className="habit-card future-card"
+                  style={{ animationDelay: `${index * 0.07}s` }}
+                >
+                  <div className="habit-icon" style={{ background: `${habit.color}22` }}>
+                    <span>{habit.emoji}</span>
+                  </div>
+                  <div className="habit-info">
+                    <div className="habit-name">{habit.name}</div>
+                    <div className="habit-meta">
+                      <span className="badge rest">Scheduled</span>
+                    </div>
+                  </div>
+                  <div className="habit-right">
+                    <div className="habit-duration">{habit.reminderTime ? `⏱ ${formatTime(habit.reminderTime)}` : "—"}</div>
+                    <button
+                      className="edit-btn inline-edit-btn"
+                      onClick={() => handleEditHabit(habit.id)}
+                      aria-label={`Edit ${habit.name}`}
+                      disabled={pendingMutations.editingIds.includes(habit.id) || pendingMutations.deletingIds.includes(habit.id)}
+                    >
+                      Edit
+                    </button>
+                  </div>
+                </div>
+              ))
+            )
+          ) : selectedEntry.isToday ? (
+            sortedHabits.length === 0 ? (
+              <div className="empty-state rich-empty">
+                <div className="empty-title">Nothing is scheduled for today</div>
+                <div className="empty-copy">Enjoy the lighter day, or add a habit if you want more momentum.</div>
+              </div>
+            ) : (
+              sortedHabits.map((habit, index) => (
+                <HabitCard
+                  key={habit.id}
+                  habit={habit}
+                  index={index}
+                  onToggle={() => { void toggleComplete(habit.id); }}
+                  onEdit={handleEditHabit}
+                  isSaving={pendingMutations.togglingIds.includes(habit.id)}
+                  isEditing={pendingMutations.editingIds.includes(habit.id)}
+                  isDeleting={pendingMutations.deletingIds.includes(habit.id)}
+                />
+              ))
+            )
+          ) : selectedDoneHabits.length === 0 && selectedMissedHabits.length === 0 ? (
             <div className="empty-state rich-empty">
-              <div className="empty-title">Nothing is scheduled for today</div>
-              <div className="empty-copy">Enjoy the lighter day, or add a habit if you want more momentum.</div>
+              <div className="empty-title">Nothing was scheduled on this day</div>
+              <div className="empty-copy">This day had no habits lined up, so there was nothing to complete or miss.</div>
             </div>
           ) : (
-            sortedHabits.map((habit, index) => (
-              <HabitCard
-                key={habit.id}
-                habit={habit}
-                index={index}
-                onToggle={() => { void toggleComplete(habit.id); }}
-                onEdit={handleEditHabit}
-                isSaving={pendingMutations.togglingIds.includes(habit.id)}
-                isEditing={pendingMutations.editingIds.includes(habit.id)}
-                isDeleting={pendingMutations.deletingIds.includes(habit.id)}
-              />
-            ))
+            <div className="day-breakdown">
+              <div className="day-column">
+                <div className="day-column-title">Done</div>
+                {selectedDoneHabits.length === 0 ? (
+                  <div className="history-empty small">No completions logged.</div>
+                ) : (
+                  selectedDoneHabits.map((habit) => (
+                    <div key={`${selectedEntry.dateKey}-${habit.id}-done`} className="history-item success inline-history-item">
+                      <span>{habit.emoji}</span>
+                      <span>{habit.name}</span>
+                    </div>
+                  ))
+                )}
+              </div>
+              <div className="day-column">
+                <div className="day-column-title">Missed</div>
+                {selectedMissedHabits.length === 0 ? (
+                  <div className="history-empty small">Nothing missed.</div>
+                ) : (
+                  selectedMissedHabits.map((habit) => (
+                    <div key={`${selectedEntry.dateKey}-${habit.id}-missed`} className="history-item warning inline-history-item">
+                      <span>{habit.emoji}</span>
+                      <span>{habit.name}</span>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
           )}
         </div>
       </div>
@@ -414,7 +503,7 @@ export default function Home() {
           setEditingId(null);
           setIsAddOpen(true);
         }}
-        onStats={() => setIsHistoryOpen(true)}
+        onStats={() => setSelectedDateKey(todayStr())}
         onProfile={() => setIsProfileOpen(true)}
         disabled={isBusy}
       />
@@ -471,12 +560,6 @@ export default function Home() {
         notificationTimezone={notificationSettings.timezone}
         notificationBusy={notificationBusy}
         notificationError={notificationError}
-      />
-      <HistoryModal
-        isOpen={isHistoryOpen}
-        onClose={() => setIsHistoryOpen(false)}
-        entry={selectedEntry ? { ...selectedEntry, label: selectedEntry.historyLabel } : null}
-        player={state.player}
       />
       <LocalMigrationPrompt
         open={migrationOpen}

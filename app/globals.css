@@ -295,13 +295,13 @@ button:disabled {
   border: none;
   cursor: pointer;
 }
+.day-pill.selected:not(.active) {
+  background: rgba(37, 57, 42, 0.12);
+}
 .day-pill.active { background: var(--dark); }
 .day-pill.active .day-name, .day-pill.active .day-num { color: white; }
 .day-pill.future {
-  opacity: 0.72;
-}
-.day-pill:disabled {
-  cursor: default;
+  opacity: 0.82;
 }
 .day-pill.has-dot::after {
   content:''; width:5px; height:5px; border-radius:50%;
@@ -420,6 +420,12 @@ button:disabled {
   padding: 3px 10px;
   border-radius: 50px;
 }
+.section-copy {
+  margin-top: -4px;
+  color: #68776b;
+  font-size: 13px;
+  font-weight: 700;
+}
 
 /* ===== HABIT CARDS ===== */
 .habits-list { padding: 0 20px; display:flex; flex-direction:column; gap:10px; }
@@ -517,6 +523,54 @@ button:disabled {
   padding: 2px;
 }
 .edit-btn:hover { opacity: 0.8; }
+
+.future-card {
+  cursor: default;
+}
+
+.future-card .habit-meta {
+  margin-top: 6px;
+}
+
+.inline-edit-btn {
+  border: none;
+  border-radius: 999px;
+  padding: 7px 12px;
+  background: rgba(37, 57, 42, 0.08);
+  color: #304a36;
+  font-size: 12px;
+  font-weight: 900;
+  opacity: 1;
+}
+
+.day-breakdown {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.day-column {
+  background: rgba(255,255,255,0.72);
+  border-radius: 20px;
+  padding: 14px;
+  box-shadow: var(--card-shadow);
+}
+
+.day-column-title {
+  font-size: 12px;
+  font-weight: 900;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  margin-bottom: 10px;
+}
+
+.inline-history-item {
+  margin-bottom: 8px;
+}
+
+.inline-history-item:last-child {
+  margin-bottom: 0;
+}
 
 /* ===== BOTTOM BAR ===== */
 .bottom-bar {
@@ -1482,6 +1536,10 @@ button:disabled {
   }
 
   .history-columns {
+    grid-template-columns: 1fr;
+  }
+
+  .day-breakdown {
     grid-template-columns: 1fr;
   }
 

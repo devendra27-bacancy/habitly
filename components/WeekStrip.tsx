@@ -19,7 +19,6 @@ export function WeekStrip({ days, selectedDateKey, onSelectDate }: WeekStripProp
   return (
     <div className="week-strip">
       {days.map((day) => {
-        const clickable = !day.isFuture;
         const isSelected = day.dateKey === selectedDateKey;
 
         return (
@@ -27,12 +26,7 @@ export function WeekStrip({ days, selectedDateKey, onSelectDate }: WeekStripProp
             key={day.dateKey}
             type="button"
             className={`day-pill ${day.isToday ? "active" : ""} ${day.hasDots ? "has-dot" : ""} ${isSelected ? "selected" : ""} ${day.isFuture ? "future" : ""}`}
-            onClick={() => {
-              if (clickable) {
-                onSelectDate(day.dateKey);
-              }
-            }}
-            disabled={!clickable}
+            onClick={() => onSelectDate(day.dateKey)}
             aria-pressed={isSelected}
           >
             <span className="day-name">{day.label}</span>
