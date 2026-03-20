@@ -9,6 +9,9 @@ export type UserNotificationSettings = {
   emailEnabled?: boolean;
   emailAddress?: string;
   emailUpdatedAt?: string;
+  quietHoursEnabled?: boolean;
+  quietHoursStart?: string;
+  quietHoursEnd?: string;
 };
 
 export type NotificationDeviceRecord = {

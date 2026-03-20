@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { collection, doc, getDocs, writeBatch } from "firebase/firestore";
 import { Header } from "../components/Header";
 import { WeekStrip } from "../components/WeekStrip";
@@ -16,7 +16,7 @@ import { LevelUpOverlay } from "../components/LevelUpOverlay";
 import { ConfettiCanvas } from "../components/ConfettiCanvas";
 import { LocalMigrationPrompt } from "../components/LocalMigrationPrompt";
 import { ToastContainer } from "../components/ToastContainer";
-import { useHabits, todayStr, isScheduledToday, Habit, formatTime } from "../lib/useHabits";
+import { useHabits, todayStr, isScheduledToday, Habit, formatTime, AppState } from "../lib/useHabits";
 import { localDateStr } from "../lib/dates";
 import { deleteCurrentUserAccount } from "../lib/auth";
 import { db } from "../lib/firebase";
@@ -28,6 +28,12 @@ import SplashScreen from "../components/SplashScreen";
 
 type HabitDraft = Omit<Habit, "id" | "streak" | "longestStreak" | "totalDone" | "lastCompleted" | "createdAt">;
 const ACCOUNT_DELETION_PREFIX = "habitflow_account_deleting_";
+const DASHBOARD_CACHE_PREFIX = "habitly_dashboard_cache_";
+
+type CachedDashboard = {
+  updatedAt: string;
+  state: AppState;
+};
 
 function LoadingShell({ title, subtitle }: { title: string; subtitle: string }) {
   return (
@@ -53,6 +59,19 @@ function ErrorShell({ title, message, actionLabel, onRetry }: { title: string; m
         <h1>{title}</h1>
         <p>{message}</p>
         <button className="state-button" onClick={onRetry}>{actionLabel}</button>
+      </div>
+    </div>
+  );
+}
+
+function OfflineBanner({ hasCachedDashboard }: { hasCachedDashboard: boolean }) {
+  return (
+    <div className="offline-banner" role="status">
+      <div className="offline-banner-title">You are offline</div>
+      <div className="offline-banner-copy">
+        {hasCachedDashboard
+          ? "Showing your last synced dashboard in read-only mode until the connection returns."
+          : "Some screens may be unavailable until you reconnect."}
       </div>
     </div>
   );
@@ -124,6 +143,7 @@ export default function Home() {
     disableNotifications,
     enableEmailNotifications,
     disableEmailNotifications,
+    updateQuietHours,
   } = useNotifications();
 
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -134,6 +154,11 @@ export default function Home() {
   const [selectedDateKey, setSelectedDateKey] = useState(todayStr());
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
   const [hasDismissedSplash, setHasDismissedSplash] = useState(false);
+  const [isOffline, setIsOffline] = useState(false);
+  const [, setIsStandalone] = useState(false);
+  const [cachedDashboard, setCachedDashboard] = useState<CachedDashboard | null>(null);
+  const [focusedReminderSlot, setFocusedReminderSlot] = useState<string | null>(null);
+  const habitsListRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (user) return;
@@ -159,9 +184,110 @@ export default function Home() {
     setHasDismissedSplash(false);
   }, [user]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const syncOnlineState = () => setIsOffline(!window.navigator.onLine);
+    syncOnlineState();
+    window.addEventListener("online", syncOnlineState);
+    window.addEventListener("offline", syncOnlineState);
+
+    return () => {
+      window.removeEventListener("online", syncOnlineState);
+      window.removeEventListener("offline", syncOnlineState);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const media = window.matchMedia("(display-mode: standalone)");
+    const updateStandalone = () => {
+      const standalone = media.matches || Boolean((window.navigator as Navigator & { standalone?: boolean }).standalone);
+      setIsStandalone(standalone);
+      document.body.classList.toggle("standalone-mode", standalone);
+    };
+
+    updateStandalone();
+    media.addEventListener("change", updateStandalone);
+    return () => {
+      media.removeEventListener("change", updateStandalone);
+      document.body.classList.remove("standalone-mode");
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !("serviceWorker" in navigator)) return;
+    void navigator.serviceWorker.register("/app-sw.js").catch((error) => {
+      console.error("Failed to register app service worker:", error);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!user || typeof window === "undefined") {
+      setCachedDashboard(null);
+      return;
+    }
+
+    try {
+      const raw = window.localStorage.getItem(`${DASHBOARD_CACHE_PREFIX}${user.uid}`);
+      setCachedDashboard(raw ? (JSON.parse(raw) as CachedDashboard) : null);
+    } catch (error) {
+      console.error("Could not read cached dashboard:", error);
+      setCachedDashboard(null);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (!user || bootStatus !== "ready" || typeof window === "undefined") return;
+
+    const nextCache: CachedDashboard = {
+      updatedAt: new Date().toISOString(),
+      state,
+    };
+
+    setCachedDashboard(nextCache);
+    window.localStorage.setItem(`${DASHBOARD_CACHE_PREFIX}${user.uid}`, JSON.stringify(nextCache));
+  }, [bootStatus, state, user]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const params = new URLSearchParams(window.location.search);
+    const focusDate = params.get("focusDate");
+    const focusSlotTime = params.get("focusSlotTime");
+
+    if (!focusDate && !focusSlotTime) return;
+
+    if (focusDate) {
+      const nextDate = parseDateKey(focusDate);
+      setDisplayWeekStartKey(localDateStr(getStartOfWeek(nextDate)));
+      setSelectedDateKey(focusDate);
+    }
+
+    if (focusSlotTime) {
+      setFocusedReminderSlot(focusSlotTime);
+      window.setTimeout(() => setFocusedReminderSlot(null), 8000);
+    }
+
+    window.history.replaceState({}, "", window.location.pathname);
+  }, []);
+
   const todayKey = todayStr();
   const todayDate = useMemo(() => parseDateKey(todayKey), [todayKey]);
   const displayWeekStart = useMemo(() => parseDateKey(displayWeekStartKey), [displayWeekStartKey]);
+  const hasCachedDashboard = Boolean(cachedDashboard?.state);
+  const shouldUseCachedDashboard =
+    isOffline &&
+    Boolean(user) &&
+    cachedDashboard?.state?.uid === user?.uid &&
+    (bootStatus !== "ready" || syncStatus === "error");
+  const activeState = shouldUseCachedDashboard && cachedDashboard ? cachedDashboard.state : state;
+
+  useEffect(() => {
+    if (!focusedReminderSlot || !selectedDateKey || selectedDateKey !== todayKey) return;
+    habitsListRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [focusedReminderSlot, selectedDateKey, todayKey]);
 
   const updateDisplayedWeek = (nextWeekStart: Date) => {
     const normalizedNextWeekStart = getStartOfWeek(nextWeekStart);
@@ -184,8 +310,8 @@ export default function Home() {
       const date = addDays(displayWeekStart, index);
       const dateKey = localDateStr(date);
       const dayOfWeek = date.getDay();
-      const completedIds = new Set(state.completionHistory[dateKey] || []);
-      const scheduled = state.habits.filter(
+      const completedIds = new Set(activeState.completionHistory[dateKey] || []);
+      const scheduled = activeState.habits.filter(
         (habit) =>
           Array.isArray(habit.daysOfWeek) &&
           habit.daysOfWeek.includes(dayOfWeek) &&
@@ -212,7 +338,7 @@ export default function Home() {
         isFuture,
       };
     });
-  }, [displayWeekStart, state.completionHistory, state.habits, todayDate, todayKey]);
+  }, [activeState.completionHistory, activeState.habits, displayWeekStart, todayDate, todayKey]);
 
   const weekDays = useMemo(() => {
     return stripEntries.map((entry) => ({
@@ -268,7 +394,7 @@ export default function Home() {
     );
   }
 
-  if (bootStatus === "loading") {
+  if (bootStatus === "loading" && !shouldUseCachedDashboard) {
     return (
       <>
         <ToastContainer />
@@ -277,7 +403,7 @@ export default function Home() {
     );
   }
 
-  if (bootStatus === "error" && errorState) {
+  if (bootStatus === "error" && errorState && !shouldUseCachedDashboard) {
     return (
       <>
         <ToastContainer />
@@ -292,7 +418,7 @@ export default function Home() {
   }
 
   const today = todayStr();
-  const scheduledToday = state.habits.filter((habit) => isScheduledToday(habit.daysOfWeek));
+  const scheduledToday = activeState.habits.filter((habit) => isScheduledToday(habit.daysOfWeek));
   const sortedHabits = [...scheduledToday].sort((a, b) => {
     const aDone = a.lastCompleted === today ? 1 : 0;
     const bDone = b.lastCompleted === today ? 1 : 0;
@@ -300,19 +426,20 @@ export default function Home() {
     return b.streak - a.streak;
   });
 
-  const editingHabit = editingId ? state.habits.find((habit) => habit.id === editingId) || null : null;
+  const editingHabit = editingId ? activeState.habits.find((habit) => habit.id === editingId) || null : null;
   const isEditingHabitSaving = Boolean(editingId && pendingMutations.editingIds.includes(editingId));
   const isEditingHabitDeleting = Boolean(editingId && pendingMutations.deletingIds.includes(editingId));
+  const isReadOnlyMode = isOffline;
   const isBusy =
     pendingMutations.adding ||
     pendingMutations.naming ||
     pendingMutations.editingIds.length > 0 ||
     pendingMutations.deletingIds.length > 0 ||
     pendingMutations.togglingIds.length > 0;
-  const totalCompleted = state.habits.reduce((sum, habit) => sum + habit.totalDone, 0);
-  const longestStreak = Math.max(0, ...state.habits.map((habit) => habit.longestStreak || 0));
-  const currentBestStreak = Math.max(0, ...state.habits.map((habit) => habit.streak || 0));
-  const daysActive = Object.keys(state.completionHistory).length;
+  const totalCompleted = activeState.habits.reduce((sum, habit) => sum + habit.totalDone, 0);
+  const longestStreak = Math.max(0, ...activeState.habits.map((habit) => habit.longestStreak || 0));
+  const currentBestStreak = Math.max(0, ...activeState.habits.map((habit) => habit.streak || 0));
+  const daysActive = Object.keys(activeState.completionHistory).length;
   const completionRate =
     scheduledToday.length === 0
       ? 0
@@ -333,11 +460,20 @@ export default function Home() {
     { label: "Longest streak", value: `${longestStreak} days`, tone: "sun" as const },
     { label: "Habits completed", value: `${totalCompleted}`, tone: "sky" as const },
     { label: "Days active", value: `${daysActive}`, tone: "rose" as const },
-    { label: "Habits in rotation", value: `${state.habits.length}`, tone: "sage" as const },
+    { label: "Habits in rotation", value: `${activeState.habits.length}`, tone: "sage" as const },
     { label: "Today done", value: `${completionRate}%`, tone: "sun" as const },
   ];
 
+  const showOfflineMutationMessage = () => {
+    showToast("Off", "You are offline. Changes will be available when the connection returns.", "warning");
+  };
+
   const handleSaveHabit = (id: string | null, updates: Partial<Habit>) => {
+    if (isReadOnlyMode) {
+      showOfflineMutationMessage();
+      return;
+    }
+
     if (id) {
       setIsAddOpen(false);
       setEditingId(null);
@@ -351,6 +487,10 @@ export default function Home() {
   };
 
   const handleDeleteHabit = (id: string) => {
+    if (isReadOnlyMode) {
+      showOfflineMutationMessage();
+      return;
+    }
     void deleteHabit(id).then((deleted) => {
       if (deleted) {
         setEditingId(null);
@@ -360,12 +500,20 @@ export default function Home() {
   };
 
   const handleEditHabit = (id: string) => {
+    if (isReadOnlyMode) {
+      showOfflineMutationMessage();
+      return;
+    }
     setEditingId(id);
     setIsAddOpen(true);
   };
 
   const handleDeleteAccount = async () => {
     if (!user || isDeletingAccount) return;
+    if (isReadOnlyMode) {
+      showOfflineMutationMessage();
+      return;
+    }
 
     const signedInAt = user.metadata.lastSignInTime ? new Date(user.metadata.lastSignInTime).getTime() : 0;
     const recentlySignedIn = signedInAt > 0 && Date.now() - signedInAt < 5 * 60 * 1000;
@@ -423,8 +571,8 @@ export default function Home() {
 
       <div className="app">
         <Header
-          name={state.name}
-          player={state.player}
+          name={activeState.name}
+          player={activeState.player}
           streak={currentBestStreak}
           weekLabel={weekLabel}
           pickerDateValue={pickerDateValue}
@@ -446,8 +594,9 @@ export default function Home() {
           onSelectDate={(dateKey) => setSelectedDateKey(dateKey)}
         />
         {selectedEntry?.isToday ? (
-          <MascotArea habits={state.habits} syncStatus={syncStatus} errorState={errorState} />
+          <MascotArea habits={activeState.habits} syncStatus={syncStatus} errorState={errorState} />
         ) : null}
+        {isOffline ? <OfflineBanner hasCachedDashboard={hasCachedDashboard} /> : null}
 
         <div className="section-header">
           <div>
@@ -463,8 +612,8 @@ export default function Home() {
           </div>
         ) : null}
 
-        <div className="habits-list">
-          {state.habits.length === 0 ? (
+        <div className="habits-list" ref={habitsListRef}>
+          {activeState.habits.length === 0 ? (
             <div className="empty-state rich-empty">
               <div className="empty-title">Your garden is ready for its first habit</div>
               <div className="empty-copy">Add a routine and habitly will start tracking streaks, XP, and level-ups automatically.</div>
@@ -497,7 +646,7 @@ export default function Home() {
                       className="edit-btn inline-edit-btn"
                       onClick={() => handleEditHabit(habit.id)}
                       aria-label={`Edit ${habit.name}`}
-                      disabled={pendingMutations.editingIds.includes(habit.id) || pendingMutations.deletingIds.includes(habit.id)}
+                      disabled={isReadOnlyMode || pendingMutations.editingIds.includes(habit.id) || pendingMutations.deletingIds.includes(habit.id)}
                     >
                       Edit
                     </button>
@@ -522,6 +671,8 @@ export default function Home() {
                   isSaving={pendingMutations.togglingIds.includes(habit.id)}
                   isEditing={pendingMutations.editingIds.includes(habit.id)}
                   isDeleting={pendingMutations.deletingIds.includes(habit.id)}
+                  disabled={isReadOnlyMode}
+                  isHighlighted={selectedEntry.isToday && focusedReminderSlot === habit.reminderTime}
                 />
               ))
             )
@@ -565,6 +716,10 @@ export default function Home() {
 
       <BottomBar
         onAdd={() => {
+          if (isReadOnlyMode) {
+            showOfflineMutationMessage();
+            return;
+          }
           setEditingId(null);
           setIsAddOpen(true);
         }}
@@ -574,7 +729,7 @@ export default function Home() {
           setSelectedDateKey(todayKey);
         }}
         onProfile={() => setIsProfileOpen(true)}
-        disabled={isBusy}
+        disableAdd={isBusy || isReadOnlyMode}
       />
 
       <AddHabitModal
@@ -592,9 +747,14 @@ export default function Home() {
 
       <NameModal
         isOpen={isNameOpen}
-        currentName={state.name}
+        currentName={activeState.name}
+        disabled={isReadOnlyMode}
         onClose={() => setIsNameOpen(false)}
         onSave={(name) => {
+          if (isReadOnlyMode) {
+            showOfflineMutationMessage();
+            return;
+          }
           void updateName(name).then((saved) => {
             if (saved) {
               setIsNameOpen(false);
@@ -617,21 +777,32 @@ export default function Home() {
         onDisableNotifications={() => { void disableNotifications(); }}
         onEnableEmailNotifications={() => { void enableEmailNotifications(); }}
         onDisableEmailNotifications={() => { void disableEmailNotifications(); }}
-        name={state.name}
-        email={state.email}
-        photoURL={state.photoURL}
-        level={state.player.level}
-        levelXp={state.player.xp}
-        totalXp={state.player.totalXp}
+        name={activeState.name}
+        email={activeState.email}
+        photoURL={activeState.photoURL}
+        level={activeState.player.level}
+        levelXp={activeState.player.xp}
+        totalXp={activeState.player.totalXp}
         stats={profileStats}
         isDeletingAccount={isDeletingAccount}
+        readOnly={isReadOnlyMode}
         notificationsSupported={notificationsSupported}
         notificationsEnabled={notificationSettings.enabled}
         notificationPermission={notificationPermission}
         notificationTimezone={notificationSettings.timezone}
         emailNotificationsEnabled={Boolean(notificationSettings.emailEnabled)}
-        emailNotificationAddress={notificationSettings.emailAddress || state.email}
+        emailNotificationAddress={notificationSettings.emailAddress || activeState.email}
         emailNotificationsAvailable={false}
+        quietHoursEnabled={Boolean(notificationSettings.quietHoursEnabled)}
+        quietHoursStart={notificationSettings.quietHoursStart || "22:00"}
+        quietHoursEnd={notificationSettings.quietHoursEnd || "07:00"}
+        onUpdateQuietHours={(nextQuietHours) => {
+          if (isReadOnlyMode) {
+            showOfflineMutationMessage();
+            return;
+          }
+          void updateQuietHours(nextQuietHours);
+        }}
         notificationBusy={notificationBusy}
         notificationError={notificationError}
       />

@@ -27,6 +27,7 @@ type ProfilePageProps = {
   totalXp: number;
   stats: ProfileStat[];
   isDeletingAccount?: boolean;
+  readOnly?: boolean;
   notificationsSupported: boolean;
   notificationsEnabled: boolean;
   notificationPermission: "default" | "denied" | "granted" | "unsupported";
@@ -34,6 +35,10 @@ type ProfilePageProps = {
   emailNotificationsEnabled: boolean;
   emailNotificationAddress?: string;
   emailNotificationsAvailable?: boolean;
+  quietHoursEnabled: boolean;
+  quietHoursStart: string;
+  quietHoursEnd: string;
+  onUpdateQuietHours: (nextQuietHours: { enabled: boolean; start: string; end: string }) => void;
   notificationBusy?: boolean;
   notificationError?: string | null;
 };
@@ -66,6 +71,7 @@ export function ProfilePage({
   totalXp,
   stats,
   isDeletingAccount = false,
+  readOnly = false,
   notificationsSupported,
   notificationsEnabled,
   notificationPermission,
@@ -73,6 +79,10 @@ export function ProfilePage({
   emailNotificationsEnabled,
   emailNotificationAddress,
   emailNotificationsAvailable = false,
+  quietHoursEnabled,
+  quietHoursStart,
+  quietHoursEnd,
+  onUpdateQuietHours,
   notificationBusy = false,
   notificationError = null,
 }: ProfilePageProps) {
@@ -120,7 +130,7 @@ export function ProfilePage({
                 <h1>{name}</h1>
                 <p>{email || "Signed in"}</p>
               </div>
-              <button className="profile-edit" onClick={onEditName}>
+              <button className="profile-edit" onClick={onEditName} disabled={readOnly}>
                 Edit name
               </button>
             </div>
@@ -155,7 +165,7 @@ export function ProfilePage({
                   <button
                     className="profile-notification-button"
                     onClick={notificationsEnabled ? onDisableNotifications : onEnableNotifications}
-                    disabled={notificationBusy || !notificationsSupported}
+                    disabled={readOnly || notificationBusy || !notificationsSupported}
                   >
                     {notificationBusy
                       ? "Updating..."
@@ -183,7 +193,7 @@ export function ProfilePage({
                   <button
                     className="profile-notification-button secondary"
                     onClick={emailNotificationsEnabled ? onDisableEmailNotifications : onEnableEmailNotifications}
-                    disabled={notificationBusy || !emailNotificationAddress || !emailNotificationsAvailable}
+                    disabled={readOnly || notificationBusy || !emailNotificationAddress || !emailNotificationsAvailable}
                   >
                     {!emailNotificationsAvailable
                       ? "Coming soon"
@@ -200,6 +210,60 @@ export function ProfilePage({
                         : "Email is off"
                       : "Not active yet"}
                   </div>
+                </div>
+              </div>
+              <div className="profile-channel-row">
+                <div className="profile-channel-copy">
+                  <div className="profile-channel-title">Quiet hours</div>
+                  <div className="profile-channel-subcopy">
+                    Push reminders are skipped during this window and resume on the next scheduled slot.
+                  </div>
+                </div>
+                <div className="profile-notification-actions">
+                  <button
+                    className="profile-notification-button secondary"
+                    onClick={() => onUpdateQuietHours({
+                      enabled: !quietHoursEnabled,
+                      start: quietHoursStart,
+                      end: quietHoursEnd,
+                    })}
+                    disabled={readOnly || notificationBusy}
+                  >
+                    {notificationBusy ? "Updating..." : quietHoursEnabled ? "Turn off quiet hours" : "Turn on quiet hours"}
+                  </button>
+                  <div className={`profile-notification-chip ${quietHoursEnabled ? "active" : ""}`}>
+                    {quietHoursEnabled ? `${quietHoursStart} - ${quietHoursEnd}` : "Not active"}
+                  </div>
+                </div>
+                <div className="profile-quiet-grid">
+                  <label className="profile-quiet-field">
+                    <span>Start</span>
+                    <input
+                      type="time"
+                      step={300}
+                      value={quietHoursStart}
+                      onChange={(event) => onUpdateQuietHours({
+                        enabled: quietHoursEnabled,
+                        start: event.target.value,
+                        end: quietHoursEnd,
+                      })}
+                      disabled={readOnly || notificationBusy}
+                    />
+                  </label>
+                  <label className="profile-quiet-field">
+                    <span>End</span>
+                    <input
+                      type="time"
+                      step={300}
+                      value={quietHoursEnd}
+                      onChange={(event) => onUpdateQuietHours({
+                        enabled: quietHoursEnabled,
+                        start: quietHoursStart,
+                        end: event.target.value,
+                      })}
+                      disabled={readOnly || notificationBusy}
+                    />
+                  </label>
                 </div>
               </div>
             </div>
@@ -226,7 +290,7 @@ export function ProfilePage({
             <button className="profile-logout" onClick={() => void logout()}>
               Log out
             </button>
-            <button className="profile-delete" onClick={onDeleteAccount} disabled={isDeletingAccount}>
+            <button className="profile-delete" onClick={onDeleteAccount} disabled={readOnly || isDeletingAccount}>
               {isDeletingAccount ? "Deleting account..." : "Delete account"}
             </button>
           </div>

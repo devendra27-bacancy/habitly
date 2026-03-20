@@ -357,10 +357,35 @@ function getLocalParts(date, timeZone) {
 }
 
 function buildDispatchMessage(habits) {
+  const [firstHabit] = habits;
+  const highestStreak = Math.max(0, ...habits.map((habit) => Number(habit.streak || 0)));
+  const hour = Number((firstHabit?.reminderTime || "00:00").split(":")[0]);
+
   if (habits.length === 1) {
+    if (highestStreak >= 7) {
+      return {
+        title: `Protect your ${highestStreak}-day streak`,
+        body: `${firstHabit.name} is ready. A quick check-in keeps the run alive.`,
+      };
+    }
+
+    if (hour >= 18) {
+      return {
+        title: `Wrap up with ${firstHabit.name}`,
+        body: "A short evening check-in will keep today feeling complete.",
+      };
+    }
+
     return {
-      title: `Time for ${habits[0].name}`,
+      title: `Time for ${firstHabit.name}`,
       body: "A quick check-in keeps your momentum moving.",
+    };
+  }
+
+  if (hour >= 18) {
+    return {
+      title: `${habits.length} habits are waiting tonight`,
+      body: "Close the day strong with a quick habit check-in.",
     };
   }
 
@@ -377,6 +402,30 @@ function buildDispatchId(localDate, slotTime) {
 function getAppOrigin(env) {
   const rawOrigin = env.APP_ORIGIN || DEFAULT_APP_ORIGIN;
   return rawOrigin.replace(/\/+$/, "");
+}
+
+function isQuietHoursActive(settings, slotTime) {
+  if (!settings.quietHoursEnabled) return false;
+
+  const start = typeof settings.quietHoursStart === "string" ? settings.quietHoursStart : "";
+  const end = typeof settings.quietHoursEnd === "string" ? settings.quietHoursEnd : "";
+  if (!start || !end) return false;
+
+  const toMinutes = (value) => {
+    const [hours, minutes] = value.split(":").map(Number);
+    return hours * 60 + minutes;
+  };
+
+  const slotMinutes = toMinutes(slotTime);
+  const startMinutes = toMinutes(start);
+  const endMinutes = toMinutes(end);
+
+  if (startMinutes === endMinutes) return false;
+  if (startMinutes < endMinutes) {
+    return slotMinutes >= startMinutes && slotMinutes < endMinutes;
+  }
+
+  return slotMinutes >= startMinutes || slotMinutes < endMinutes;
 }
 
 function getNotificationBranding(env) {
@@ -449,6 +498,11 @@ async function sendPushNotifications(env, { tokens, dispatchId, localDate, slotT
                 icon: branding.icon,
                 badge: branding.badge,
                 tag: dispatchId,
+                data: {
+                  link: "/",
+                  focusDate: localDate,
+                  focusSlotTime: slotTime,
+                },
               },
               fcmOptions: {
                 link: "/",
@@ -459,6 +513,8 @@ async function sendPushNotifications(env, { tokens, dispatchId, localDate, slotT
               localDate,
               slotTime,
               link: "/",
+              focusDate: localDate,
+              focusSlotTime: slotTime,
             },
           },
         }),
@@ -656,8 +712,9 @@ async function sendReminderForUser(env, userDocument, { now, dryRun }) {
   if (dueHabits.length === 0) {
     return { sent: false, reason: "no-habits", userId: userDocument.id };
   }
-
-  const deviceRecords = pushEnabled ? await loadGrantedDevices(env, userDocument.id) : [];
+  const pushAllowed = pushEnabled && !isQuietHoursActive(settings, slotTime);
+  const quietHoursSuppressed = pushEnabled && !pushAllowed;
+  const deviceRecords = pushAllowed ? await loadGrantedDevices(env, userDocument.id) : [];
   const pushTokens = deviceRecords.map((device) => ({
     token: device.token,
     deviceDocId: device.deviceDocId,
@@ -668,7 +725,7 @@ async function sendReminderForUser(env, userDocument, { now, dryRun }) {
   const hasPushChannel = pushTokens.length > 0;
 
   if (!hasEmailChannel && !hasPushChannel) {
-    return { sent: false, reason: "no-channels", userId: userDocument.id };
+    return { sent: false, reason: quietHoursSuppressed ? "quiet-hours" : "no-channels", userId: userDocument.id };
   }
 
   const dispatchId = buildDispatchId(localDate, slotTime);
@@ -712,6 +769,8 @@ async function sendReminderForUser(env, userDocument, { now, dryRun }) {
           localDate,
           slotTime,
           link: "/",
+          focusDate: localDate,
+          focusSlotTime: slotTime,
         },
         email: emailPayload
           ? {
@@ -750,10 +809,11 @@ async function sendReminderForUser(env, userDocument, { now, dryRun }) {
       configured: false,
       to: null,
     };
+  const wasDelivered = pushResult.successCount > 0 || Boolean(emailResult.sent);
 
   return {
-    sent: pushResult.successCount > 0 || Boolean(emailResult.sent),
-    reason: pushResult.successCount > 0 || emailResult.sent ? "sent" : "all-failed",
+    sent: wasDelivered,
+    reason: wasDelivered ? "sent" : quietHoursSuppressed ? "quiet-hours" : "all-failed",
     userId: userDocument.id,
     dispatchId,
     habitCount: dueHabits.length,
@@ -764,6 +824,7 @@ async function sendReminderForUser(env, userDocument, { now, dryRun }) {
     emailSent: Boolean(emailResult.sent),
     emailConfigured: Boolean(emailResult.configured),
     emailAddress: emailResult.to,
+    quietHoursSuppressed,
   };
 }
 

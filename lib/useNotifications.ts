@@ -29,6 +29,11 @@ type UseNotificationsResult = {
   disableNotifications: () => Promise<boolean>;
   enableEmailNotifications: () => Promise<boolean>;
   disableEmailNotifications: () => Promise<boolean>;
+  updateQuietHours: (nextQuietHours: {
+    enabled: boolean;
+    start: string;
+    end: string;
+  }) => Promise<boolean>;
 };
 
 const defaultSettings: UserNotificationSettings = {
@@ -39,6 +44,9 @@ const defaultSettings: UserNotificationSettings = {
   emailEnabled: false,
   emailAddress: "",
   emailUpdatedAt: "",
+  quietHoursEnabled: false,
+  quietHoursStart: "22:00",
+  quietHoursEnd: "07:00",
 };
 
 const firebaseEnv = {
@@ -88,14 +96,14 @@ async function getMessagingSupport() {
 }
 
 async function registerMessagingServiceWorker() {
-  const registration = await navigator.serviceWorker.register(buildMessagingServiceWorkerUrl(), { scope: "/" });
+  const registration = await navigator.serviceWorker.register(buildMessagingServiceWorkerUrl(), { scope: "/firebase-push/" });
 
   if (registration.active) {
     return registration;
   }
 
   await navigator.serviceWorker.ready;
-  return navigator.serviceWorker.getRegistration("/") ?? registration;
+  return navigator.serviceWorker.getRegistration("/firebase-push/") ?? registration;
 }
 
 export function useNotifications(): UseNotificationsResult {
@@ -183,6 +191,9 @@ export function useNotifications(): UseNotificationsResult {
       emailEnabled: settings.emailEnabled ?? false,
       emailAddress: settings.emailAddress ?? user.email ?? "",
       emailUpdatedAt: settings.emailUpdatedAt ?? "",
+      quietHoursEnabled: settings.quietHoursEnabled ?? false,
+      quietHoursStart: settings.quietHoursStart ?? "22:00",
+      quietHoursEnd: settings.quietHoursEnd ?? "07:00",
     };
 
     await syncProfileSettings(nextSettings);
@@ -190,7 +201,17 @@ export function useNotifications(): UseNotificationsResult {
     setSettings(nextSettings);
     setPermission(permissionValue);
     return true;
-  }, [getMessagingClient, settings.emailAddress, settings.emailEnabled, settings.emailUpdatedAt, syncProfileSettings, user]);
+  }, [
+    getMessagingClient,
+    settings.emailAddress,
+    settings.emailEnabled,
+    settings.emailUpdatedAt,
+    settings.quietHoursEnabled,
+    settings.quietHoursEnd,
+    settings.quietHoursStart,
+    syncProfileSettings,
+    user,
+  ]);
 
   useEffect(() => {
     let cancelled = false;
@@ -227,6 +248,9 @@ export function useNotifications(): UseNotificationsResult {
           emailEnabled: false,
           emailAddress: user.email ?? current.emailAddress ?? "",
           emailUpdatedAt: "",
+          quietHoursEnabled: false,
+          quietHoursStart: "22:00",
+          quietHoursEnd: "07:00",
         }));
         return;
       }
@@ -240,6 +264,9 @@ export function useNotifications(): UseNotificationsResult {
         emailEnabled: Boolean(notificationSettings.emailEnabled),
         emailAddress: notificationSettings.emailAddress ?? user.email ?? "",
         emailUpdatedAt: notificationSettings.emailUpdatedAt ?? "",
+        quietHoursEnabled: Boolean(notificationSettings.quietHoursEnabled),
+        quietHoursStart: notificationSettings.quietHoursStart ?? "22:00",
+        quietHoursEnd: notificationSettings.quietHoursEnd ?? "07:00",
       };
 
       setSettings(mergedSettings);
@@ -307,6 +334,9 @@ export function useNotifications(): UseNotificationsResult {
           emailEnabled: settings.emailEnabled ?? false,
           emailAddress: settings.emailAddress ?? user?.email ?? "",
           emailUpdatedAt: settings.emailUpdatedAt ?? "",
+          quietHoursEnabled: settings.quietHoursEnabled ?? false,
+          quietHoursStart: settings.quietHoursStart ?? "22:00",
+          quietHoursEnd: settings.quietHoursEnd ?? "07:00",
         };
         await syncProfileSettings(deniedSettings);
         setSettings(deniedSettings);
@@ -325,7 +355,18 @@ export function useNotifications(): UseNotificationsResult {
     } finally {
       setIsBusy(false);
     }
-  }, [isSupported, registerNotificationToken, settings.emailAddress, settings.emailEnabled, settings.emailUpdatedAt, syncProfileSettings, user?.email]);
+  }, [
+    isSupported,
+    registerNotificationToken,
+    settings.emailAddress,
+    settings.emailEnabled,
+    settings.emailUpdatedAt,
+    settings.quietHoursEnabled,
+    settings.quietHoursEnd,
+    settings.quietHoursStart,
+    syncProfileSettings,
+    user?.email,
+  ]);
 
   const disableNotifications = useCallback(async () => {
     if (!user) return false;
@@ -352,6 +393,9 @@ export function useNotifications(): UseNotificationsResult {
         emailEnabled: settings.emailEnabled ?? false,
         emailAddress: settings.emailAddress ?? user.email ?? "",
         emailUpdatedAt: settings.emailUpdatedAt ?? "",
+        quietHoursEnabled: settings.quietHoursEnabled ?? false,
+        quietHoursStart: settings.quietHoursStart ?? "22:00",
+        quietHoursEnd: settings.quietHoursEnd ?? "07:00",
       };
 
       await syncProfileSettings(nextSettings);
@@ -367,7 +411,17 @@ export function useNotifications(): UseNotificationsResult {
     } finally {
       setIsBusy(false);
     }
-  }, [getMessagingClient, settings.emailAddress, settings.emailEnabled, settings.emailUpdatedAt, syncProfileSettings, user]);
+  }, [
+    getMessagingClient,
+    settings.emailAddress,
+    settings.emailEnabled,
+    settings.emailUpdatedAt,
+    settings.quietHoursEnabled,
+    settings.quietHoursEnd,
+    settings.quietHoursStart,
+    syncProfileSettings,
+    user,
+  ]);
 
   const enableEmailNotifications = useCallback(async () => {
     if (!user) {
@@ -436,6 +490,42 @@ export function useNotifications(): UseNotificationsResult {
     }
   }, [settings, syncProfileSettings, user]);
 
+  const updateQuietHours = useCallback(async ({
+    enabled,
+    start,
+    end,
+  }: {
+    enabled: boolean;
+    start: string;
+    end: string;
+  }) => {
+    if (!user) return false;
+
+    setIsBusy(true);
+    setError(null);
+
+    try {
+      const nextSettings: UserNotificationSettings = {
+        ...settings,
+        quietHoursEnabled: enabled,
+        quietHoursStart: start,
+        quietHoursEnd: end,
+      };
+
+      await syncProfileSettings(nextSettings);
+      setSettings(nextSettings);
+      showToast("Moon", enabled ? "Quiet hours updated." : "Quiet hours turned off.", "success");
+      return true;
+    } catch (updateError) {
+      const message = updateError instanceof Error ? updateError.message : "Could not update quiet hours.";
+      setError(message);
+      showToast("!", message, "error");
+      return false;
+    } finally {
+      setIsBusy(false);
+    }
+  }, [settings, syncProfileSettings, user]);
+
   return {
     isSupported,
     permission,
@@ -446,5 +536,6 @@ export function useNotifications(): UseNotificationsResult {
     disableNotifications,
     enableEmailNotifications,
     disableEmailNotifications,
+    updateQuietHours,
   };
 }
