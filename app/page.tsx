@@ -24,6 +24,7 @@ import { useNotifications } from "../lib/useNotifications";
 import { showToast } from "../components/ToastContainer";
 import { useAuth } from "../components/AuthProvider";
 import Login from "../components/Login";
+import SplashScreen from "../components/SplashScreen";
 
 type HabitDraft = Omit<Habit, "id" | "streak" | "longestStreak" | "totalDone" | "lastCompleted" | "createdAt">;
 const ACCOUNT_DELETION_PREFIX = "habitflow_account_deleting_";
@@ -130,6 +131,7 @@ export default function Home() {
   const [displayWeekStartKey, setDisplayWeekStartKey] = useState(localDateStr(getStartOfWeek(new Date())));
   const [selectedDateKey, setSelectedDateKey] = useState(todayStr());
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+  const [hasDismissedSplash, setHasDismissedSplash] = useState(false);
 
   useEffect(() => {
     if (user) return;
@@ -152,6 +154,7 @@ export default function Home() {
     setDisplayWeekStartKey(localDateStr(getStartOfWeek(new Date())));
     setSelectedDateKey(todayStr());
     setIsDeletingAccount(false);
+    setHasDismissedSplash(false);
   }, [user]);
 
   const todayKey = todayStr();
@@ -254,7 +257,11 @@ export default function Home() {
     return (
       <>
         <ToastContainer />
-        <Login />
+        {hasDismissedSplash ? (
+          <Login />
+        ) : (
+          <SplashScreen onComplete={() => setHasDismissedSplash(true)} />
+        )}
       </>
     );
   }
