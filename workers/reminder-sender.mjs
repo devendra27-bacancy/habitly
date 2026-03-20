@@ -431,9 +431,23 @@ function isQuietHoursActive(settings, slotTime) {
 function getNotificationBranding(env) {
   const origin = getAppOrigin(env);
   return {
-    icon: `${origin}/web-app-manifest-192x192.png`,
     badge: `${origin}/favicon-96x96.png`,
   };
+}
+
+function buildHabitNotificationIcon(habit) {
+  const emoji = typeof habit?.emoji === "string" && habit.emoji ? habit.emoji : "🌿";
+  const color = typeof habit?.color === "string" && habit.color ? habit.color : "#5f8e59";
+  const safeColor = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(color) ? color : "#5f8e59";
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="192" height="192" viewBox="0 0 192 192">
+      <rect width="192" height="192" rx="96" fill="${safeColor}" />
+      <circle cx="96" cy="96" r="78" fill="rgba(255,255,255,0.18)" />
+      <text x="96" y="112" text-anchor="middle" font-size="88">${emoji}</text>
+    </svg>
+  `.trim();
+
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }
 
 function buildEmailPayload(env, habits) {
@@ -476,6 +490,7 @@ function isInvalidFcmError(errorPayload) {
 async function sendPushNotifications(env, { tokens, dispatchId, localDate, slotTime, habits, dryRun }) {
   const copy = buildDispatchMessage(habits);
   const branding = getNotificationBranding(env);
+  const habitIcon = buildHabitNotificationIcon(habits[0]);
   const projectId = getRequiredEnv(env, "FIREBASE_PROJECT_ID");
   const accessToken = await getGoogleAccessToken(env);
   const results = await Promise.all(
@@ -495,7 +510,7 @@ async function sendPushNotifications(env, { tokens, dispatchId, localDate, slotT
             },
             webpush: {
               notification: {
-                icon: branding.icon,
+                icon: habitIcon,
                 badge: branding.badge,
                 tag: dispatchId,
                 data: {
