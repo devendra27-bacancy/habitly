@@ -57,3 +57,17 @@ export function CloseIcon({ className }: IconProps) {
     </BaseIcon>
   );
 }
+
+export function CalendarIcon({ className }: IconProps) {
+  return (
+    <BaseIcon className={className}>
+      <rect x="4" y="5.5" width="16" height="14.5" rx="4" stroke="currentColor" strokeWidth="1.6" />
+      <path d="M8 3.75V7.25" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      <path d="M16 3.75V7.25" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      <path d="M4.5 9.25H19.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" opacity="0.7" />
+      <path d="M8 12.75H8.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <path d="M12 12.75H12.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <path d="M16 12.75H16.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </BaseIcon>
+  );
+}

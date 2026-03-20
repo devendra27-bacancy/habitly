@@ -294,15 +294,6 @@ button:disabled {
   min-width: 0;
 }
 
-.week-toolbar-kicker {
-  font-size: 10px;
-  font-weight: 900;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: #728475;
-  margin-bottom: 4px;
-}
-
 .week-toolbar-label {
   font-family: var(--font-fredoka), cursive;
   font-size: 22px;
@@ -340,17 +331,21 @@ button:disabled {
   font-size: 12px;
 }
 
-.week-input {
-  min-width: 136px;
-  border: none;
-  border-radius: 999px;
-  padding: 10px 14px;
-  background: rgba(255,255,255,0.72);
-  color: #304a36;
-  font-family: var(--font-nunito), sans-serif;
-  font-size: 13px;
-  font-weight: 800;
-  box-shadow: var(--card-shadow);
+.week-picker-trigger {
+  position: relative;
+}
+
+.week-picker-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.week-input-hidden {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .week-strip {
@@ -1601,11 +1596,6 @@ button:disabled {
 
   .week-toolbar-actions {
     justify-content: stretch;
-  }
-
-  .week-input {
-    flex: 1;
-    width: 100%;
   }
 
   .history-day-head {

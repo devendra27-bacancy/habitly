@@ -1,5 +1,8 @@
 "use client";
 
+import { useRef } from "react";
+import { CalendarIcon } from "./Icons";
+
 type StripDay = {
   label: string;
   num: number;
@@ -34,24 +37,45 @@ export function WeekStrip({
   onNextWeek,
   onCurrentWeek,
 }: WeekStripProps) {
+  const weekInputRef = useRef<HTMLInputElement | null>(null);
+
+  const openWeekPicker = () => {
+    const input = weekInputRef.current;
+    if (!input) return;
+
+    if (typeof input.showPicker === "function") {
+      input.showPicker();
+      return;
+    }
+
+    input.focus();
+    input.click();
+  };
+
   return (
     <div className="week-strip-wrap">
       <div className="week-toolbar">
         <div className="week-toolbar-copy">
-          <div className="week-toolbar-kicker">Week picker</div>
           <div className="week-toolbar-label">{weekLabel}</div>
         </div>
         <div className="week-toolbar-actions">
           <button type="button" className="week-nav-btn" onClick={onPreviousWeek} aria-label="Previous week">
             ←
           </button>
-          <input
-            type="week"
-            className="week-input"
-            value={weekValue}
-            onChange={(event) => onWeekChange(event.target.value)}
-            aria-label="Choose week"
-          />
+          <div className="week-picker-trigger">
+            <input
+              ref={weekInputRef}
+              type="week"
+              className="week-input-hidden"
+              value={weekValue}
+              onChange={(event) => onWeekChange(event.target.value)}
+              aria-label="Choose week"
+              tabIndex={-1}
+            />
+            <button type="button" className="week-nav-btn week-picker-btn" onClick={openWeekPicker} aria-label="Choose week">
+              <CalendarIcon className="toolbar-icon" />
+            </button>
+          </div>
           <button type="button" className="week-nav-btn" onClick={onNextWeek} aria-label="Next week">
             →
           </button>
