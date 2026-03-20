@@ -31,7 +31,7 @@ body {
 }
 
 body.standalone-mode {
-  background: linear-gradient(180deg, #eef6ea 0%, #e5f0df 100%);
+  background: var(--sage);
 }
 
 button:disabled {
