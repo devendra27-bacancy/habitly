@@ -302,7 +302,7 @@ export function useNotifications(): UseNotificationsResult {
       unsubscribe = onMessage(messaging, (payload) => {
         const title = payload.notification?.title || "habitly reminder";
         const body = payload.notification?.body || "Your next habit is waiting for you.";
-        showToast("Push", `${title} - ${body}`, "info");
+        showToast("notification", `${title} - ${body}`, "info");
       });
     })();
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from 'react';
+import { BellIcon } from './Icons';
 
 const ADD_TOAST_EVENT = 'add-toast';
 
@@ -49,7 +50,14 @@ export function ToastContainer() {
     <div id="toast-container">
       {toasts.map((toast) => (
         <div key={toast.id} className={`toast toast-${toast.type} ${toast.closing ? 'toast-out' : ''}`}>
-          {toast.icon} <span>{toast.message}</span>
+          {toast.icon === "notification" ? (
+            <span className="toast-icon" aria-hidden="true">
+              <BellIcon className="toast-icon-svg" />
+            </span>
+          ) : (
+            <span className="toast-icon" aria-hidden="true">{toast.icon}</span>
+          )}
+          <span>{toast.message}</span>
         </div>
       ))}
     </div>

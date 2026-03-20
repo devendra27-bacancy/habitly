@@ -435,14 +435,34 @@ function getNotificationBranding(env) {
   };
 }
 
+function hexToRgb(color) {
+  const normalized = color.replace("#", "");
+  const hex = normalized.length === 3
+    ? normalized.split("").map((part) => part + part).join("")
+    : normalized;
+
+  if (!/^[0-9a-f]{6}$/i.test(hex)) {
+    return null;
+  }
+
+  return {
+    r: Number.parseInt(hex.slice(0, 2), 16),
+    g: Number.parseInt(hex.slice(2, 4), 16),
+    b: Number.parseInt(hex.slice(4, 6), 16),
+  };
+}
+
 function buildHabitNotificationIcon(habit) {
   const emoji = typeof habit?.emoji === "string" && habit.emoji ? habit.emoji : "🌿";
   const color = typeof habit?.color === "string" && habit.color ? habit.color : "#5f8e59";
   const safeColor = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(color) ? color : "#5f8e59";
+  const rgb = hexToRgb(safeColor) ?? { r: 95, g: 142, b: 89 };
+  const tintedBackground = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.133)`;
+  const tintedRing = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.24)`;
   const svg = `
     <svg xmlns="http://www.w3.org/2000/svg" width="192" height="192" viewBox="0 0 192 192">
-      <rect width="192" height="192" rx="96" fill="${safeColor}" />
-      <circle cx="96" cy="96" r="78" fill="rgba(255,255,255,0.18)" />
+      <rect width="192" height="192" rx="96" fill="${tintedBackground}" />
+      <circle cx="96" cy="96" r="94" fill="${tintedBackground}" stroke="${tintedRing}" stroke-width="4" />
       <text x="96" y="112" text-anchor="middle" font-size="88">${emoji}</text>
     </svg>
   `.trim();

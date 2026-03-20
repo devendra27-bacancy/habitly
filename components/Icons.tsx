@@ -71,3 +71,18 @@ export function CalendarIcon({ className }: IconProps) {
     </BaseIcon>
   );
 }
+
+export function BellIcon({ className }: IconProps) {
+  return (
+    <BaseIcon className={className}>
+      <path
+        d="M8 10.25C8 8.04 9.79 6.25 12 6.25C14.21 6.25 16 8.04 16 10.25V13.45C16 14.06 16.24 14.65 16.67 15.08L17.5 15.91C17.81 16.22 17.59 16.75 17.15 16.75H6.85C6.41 16.75 6.19 16.22 6.5 15.91L7.33 15.08C7.76 14.65 8 14.06 8 13.45V10.25Z"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinejoin="round"
+      />
+      <path d="M10.25 18C10.58 18.58 11.21 18.95 12 18.95C12.79 18.95 13.42 18.58 13.75 18" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      <path d="M12 4.6V5.2" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </BaseIcon>
+  );
+}
