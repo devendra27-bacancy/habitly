@@ -17,9 +17,9 @@ type WeekStripProps = {
   selectedDateKey: string;
   onSelectDate: (dateKey: string) => void;
   weekLabel: string;
-  weekValue: string;
+  pickerDateValue: string;
   showCurrentWeekButton: boolean;
-  onWeekChange: (value: string) => void;
+  onPickerDateChange: (value: string) => void;
   onPreviousWeek: () => void;
   onNextWeek: () => void;
   onCurrentWeek: () => void;
@@ -30,9 +30,9 @@ export function WeekStrip({
   selectedDateKey,
   onSelectDate,
   weekLabel,
-  weekValue,
+  pickerDateValue,
   showCurrentWeekButton,
-  onWeekChange,
+  onPickerDateChange,
   onPreviousWeek,
   onNextWeek,
   onCurrentWeek,
@@ -65,14 +65,14 @@ export function WeekStrip({
           <div className="week-picker-trigger">
             <input
               ref={weekInputRef}
-              type="week"
+              type="date"
               className="week-input-hidden"
-              value={weekValue}
-              onChange={(event) => onWeekChange(event.target.value)}
-              aria-label="Choose week"
+              value={pickerDateValue}
+              onChange={(event) => onPickerDateChange(event.target.value)}
+              aria-label="Choose date"
               tabIndex={-1}
             />
-            <button type="button" className="week-nav-btn week-picker-btn" onClick={openWeekPicker} aria-label="Choose week">
+            <button type="button" className="week-nav-btn week-picker-btn" onClick={openWeekPicker} aria-label="Choose date">
               <CalendarIcon className="toolbar-icon" />
             </button>
           </div>

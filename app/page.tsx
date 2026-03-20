@@ -87,26 +87,6 @@ function addDays(date: Date, amount: number) {
   return next;
 }
 
-function toWeekInputValue(weekStart: Date) {
-  const thursday = addDays(getStartOfWeek(weekStart), 3);
-  const year = thursday.getFullYear();
-  const firstThursday = new Date(year, 0, 4);
-  const firstWeekStart = getStartOfWeek(firstThursday);
-  const diffDays = Math.round((getStartOfWeek(weekStart).getTime() - firstWeekStart.getTime()) / (1000 * 60 * 60 * 24));
-  const weekNumber = Math.floor(diffDays / 7) + 1;
-  return `${year}-W${String(weekNumber).padStart(2, "0")}`;
-}
-
-function fromWeekInputValue(weekValue: string) {
-  const match = /^(\d{4})-W(\d{2})$/.exec(weekValue);
-  if (!match) return null;
-  const year = Number(match[1]);
-  const week = Number(match[2]);
-  const firstThursday = new Date(year, 0, 4);
-  const firstWeekStart = getStartOfWeek(firstThursday);
-  return addDays(firstWeekStart, (week - 1) * 7);
-}
-
 export default function Home() {
   const { user, loading } = useAuth();
   const {
@@ -244,7 +224,7 @@ export default function Home() {
     () => stripEntries.find((entry) => entry.dateKey === selectedDateKey) ?? stripEntries.find((entry) => entry.isToday) ?? null,
     [selectedDateKey, stripEntries],
   );
-  const weekInputValue = useMemo(() => toWeekInputValue(displayWeekStart), [displayWeekStart]);
+  const pickerDateValue = useMemo(() => localDateStr(displayWeekStart), [displayWeekStart]);
   const weekLabel = useMemo(() => {
     const weekEnd = addDays(displayWeekStart, 6);
     const sameMonth = displayWeekStart.getMonth() === weekEnd.getMonth();
@@ -439,13 +419,11 @@ export default function Home() {
           selectedDateKey={selectedDateKey}
           onSelectDate={(dateKey) => setSelectedDateKey(dateKey)}
           weekLabel={weekLabel}
-          weekValue={weekInputValue}
+          pickerDateValue={pickerDateValue}
           showCurrentWeekButton={!isViewingCurrentWeek}
-          onWeekChange={(value) => {
-            const nextWeekStart = fromWeekInputValue(value);
-            if (nextWeekStart) {
-              updateDisplayedWeek(nextWeekStart);
-            }
+          onPickerDateChange={(value) => {
+            if (!value) return;
+            updateDisplayedWeek(parseDateKey(value));
           }}
           onPreviousWeek={() => updateDisplayedWeek(addDays(displayWeekStart, -7))}
           onNextWeek={() => updateDisplayedWeek(addDays(displayWeekStart, 7))}
@@ -455,7 +433,9 @@ export default function Home() {
             setSelectedDateKey(todayKey);
           }}
         />
-        <MascotArea habits={state.habits} syncStatus={syncStatus} errorState={errorState} />
+        {selectedEntry?.isToday ? (
+          <MascotArea habits={state.habits} syncStatus={syncStatus} errorState={errorState} />
+        ) : null}
 
         <div className="section-header">
           <div>
