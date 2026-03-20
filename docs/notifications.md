@@ -1,6 +1,11 @@
 # Notifications
 
-habitly supports browser push opt-in, device token storage, and a scheduled reminder sender driven by GitHub Actions.
+habitly supports two reminder channels from the same reminder slot:
+
+- web push for browsers with an active FCM token
+- email reminders through a future provider integration
+
+The frontend still owns browser permission, token registration, and profile settings. Scheduled delivery is now handled by a Cloudflare Worker.
 
 ## What is live
 
@@ -9,9 +14,10 @@ habitly supports browser push opt-in, device token storage, and a scheduled remi
 - Foreground notification handling inside the app
 - Background notification handling through `public/firebase-messaging-sw.js`
 - Per-device storage in `users/{uid}/devices/{tokenId}`
-- Profile-level notification settings in `users/{uid}.notificationSettings`
-- Scheduled reminder delivery via [scripts/reminder-runner.js](/D:/Anti/habitflow-next/scripts/reminder-runner.js)
-- GitHub Actions orchestration via [.github/workflows/reminder-sender.yml](/D:/Anti/habitflow-next/.github/workflows/reminder-sender.yml)
+- Profile-level reminder settings in `users/{uid}.notificationSettings`
+- Scheduled Cloudflare delivery via [workers/reminder-sender.mjs](/D:/Anti/habitflow-next/workers/reminder-sender.mjs)
+- Cron Trigger configuration in [wrangler.toml](/D:/Anti/habitflow-next/wrangler.toml)
+- GitHub manual fallback via [.github/workflows/reminder-sender.yml](/D:/Anti/habitflow-next/.github/workflows/reminder-sender.yml)
 
 ## Firestore shape
 
@@ -19,12 +25,16 @@ habitly supports browser push opt-in, device token storage, and a scheduled remi
 
 ```json
 {
+  "email": "devendra@example.com",
   "notificationSettings": {
     "enabled": true,
     "permission": "granted",
     "timezone": "Asia/Calcutta",
-    "updatedAt": "2026-03-13T12:00:00.000Z",
-    "tokenId": "abc123"
+    "updatedAt": "2026-03-20T12:00:00.000Z",
+    "tokenId": "abc123",
+    "emailEnabled": true,
+    "emailAddress": "devendra@example.com",
+    "emailUpdatedAt": "2026-03-20T12:00:00.000Z"
   }
 }
 ```
@@ -48,119 +58,146 @@ habitly supports browser push opt-in, device token storage, and a scheduled remi
 
 ```json
 {
-  "localDate": "2026-03-13",
-  "slotTime": "08:00",
+  "localDate": "2026-03-20",
+  "slotTime": "22:10",
   "timeZone": "Asia/Calcutta",
   "habitIds": ["habit_1", "habit_2"],
-  "createdAt": "serverTimestamp()"
+  "channels": {
+    "push": true,
+    "email": true
+  },
+  "createdAt": "2026-03-20T16:40:00.000Z"
 }
 ```
 
-## Scheduling scaffold
+## Worker behavior
 
-The backend sender lives in [scripts/reminder-service.js](/D:/Anti/habitflow-next/scripts/reminder-service.js) and is invoked by [scripts/reminder-runner.js](/D:/Anti/habitflow-next/scripts/reminder-runner.js).
+The Worker does this for every cron run:
 
-It does this:
-
-1. Reads users where `notificationSettings.enabled == true`.
+1. Reads users where `notificationSettings.enabled == true` or `notificationSettings.emailEnabled == true`.
 2. Converts the current UTC time into each user timezone.
 3. Finds habits in `users/{uid}/habits` with the matching `reminderTime`.
 4. Filters by scheduled weekday and habit `createdAt`.
 5. Loads active browser tokens from `users/{uid}/devices`.
-6. Sends one grouped notification per user per time slot.
-7. Writes a dedupe marker to `users/{uid}/reminderDispatches/{date_time}`.
-8. Removes dead tokens when FCM reports invalid registrations.
-9. Supports manual targeting with `--dry-run`, `--user-id`, and `--at=ISO_TIMESTAMP`.
+6. Builds one grouped reminder per user per slot.
+7. Writes a dedupe marker to `users/{uid}/reminderDispatches/{YYYY-MM-DD_HH-mm}`.
+8. Sends push notifications through FCM HTTP v1.
+9. Leaves email reminders dormant until a provider is configured.
+10. Removes dead browser tokens when FCM reports an invalid registration.
 
-## Recommended production trigger
+## Cloudflare setup
 
-Use `cron-job.org` to call the GitHub Actions `workflow_dispatch` API every 5 minutes.
+Install Wrangler if needed:
 
-Why:
+```bash
+npm install
+```
 
-- More reliable than GitHub's built-in scheduled workflows for reminder timing
-- Still free for this use case
-- Reuses the working GitHub Actions runner and existing reminder script
+Run locally:
 
-## GitHub setup
+```bash
+npm run worker:dev
+```
 
-Add these repository secrets:
+Deploy:
 
-- `FIREBASE_SERVICE_ACCOUNT_JSON`
+```bash
+npm run worker:deploy
+```
+
+### Required bindings
+
+Regular vars:
+
+- `APP_ORIGIN`
 - `FIREBASE_PROJECT_ID`
 
-Create a GitHub token for `cron-job.org`:
+Secrets required for push:
 
-- Recommended: fine-grained personal access token
-- Repository access: `habitly`
-- Permissions:
-  - `Actions: Read and write`
-  - `Contents: Read-only`
+- `FIREBASE_CLIENT_EMAIL`
+- `FIREBASE_PRIVATE_KEY`
+- `DEBUG_TOKEN`
 
-## cron-job.org request config
+Suggested setup:
 
-Create a job that runs every 5 minutes.
-
-### URL
-
-```text
-https://api.github.com/repos/devendra27-bacancy/habitly/actions/workflows/reminder-sender.yml/dispatches
+```bash
+wrangler secret put FIREBASE_CLIENT_EMAIL
+wrangler secret put FIREBASE_PRIVATE_KEY
+wrangler secret put DEBUG_TOKEN
 ```
 
-### Method
+Optional future email secrets:
+
+- `MAILGUN_API_KEY`
+- `MAILGUN_DOMAIN`
+- `MAILGUN_FROM_EMAIL`
+
+### Cron Trigger
+
+The Worker is configured for:
 
 ```text
-POST
+*/5 * * * *
 ```
 
-### Headers
+That means reminder delivery should happen within the next few minutes of the requested time slot, not at second-level precision.
 
-```text
-Accept: application/vnd.github+json
-Authorization: Bearer YOUR_GITHUB_TOKEN
-X-GitHub-Api-Version: 2022-11-28
-Content-Type: application/json
-```
+## Manual debug route
 
-### Request body
+The Worker exposes:
+
+- `GET /health`
+- `POST /debug`
+
+`POST /debug` requires:
+
+- header: `x-debug-token: <DEBUG_TOKEN>`
+
+Body example:
 
 ```json
 {
-  "ref": "master",
-  "inputs": {
-    "dry_run": "false",
-    "user_id": "",
-    "at": ""
-  }
+  "dryRun": true,
+  "userId": "2HhpRqIiHtVzDqD3ZPlPqvLnViy2",
+  "at": "2026-03-13T16:40:00.000Z"
 }
 ```
 
-## Manual testing
+## Email reminders
+
+Email reminders are independent from push reminders.
+
+- Users can enable email without push
+- Users can keep push without email
+- The email target defaults to the profile email unless `notificationSettings.emailAddress` is set explicitly
+
+Email reminders are intentionally kept as a frontend/data-model preview right now.
+
+- the profile UI shows the channel
+- the Firestore fields are ready
+- the Worker safely skips email delivery when no provider secrets are configured
+- push reminders continue to work normally without any email provider
+
+Recommended email content:
+
+- concise reminder subject
+- one grouped email per reminder slot
+- CTA back to `https://habitly.web.app/`
+
+## GitHub fallback
+
+The existing Node reminder sender still exists for manual fallback:
+
+- [scripts/reminder-service.js](/D:/Anti/habitflow-next/scripts/reminder-service.js)
+- [scripts/reminder-runner.js](/D:/Anti/habitflow-next/scripts/reminder-runner.js)
+- [.github/workflows/reminder-sender.yml](/D:/Anti/habitflow-next/.github/workflows/reminder-sender.yml)
+
+Use that only as a temporary backup while the Cloudflare Worker is being validated. After the Worker is confirmed in production, disable the old `cron-job.org` trigger and leave GitHub for manual dry-run checks only.
+
+## Manual Node fallback tests
 
 ```bash
 npm run reminders:run -- --dry-run
 npm run reminders:run -- --dry-run --user-id=YOUR_USER_ID
 npm run reminders:run -- --dry-run --at=2026-03-13T08:00:00.000Z
-```
-
-## Payload suggestion
-
-```json
-{
-  "notification": {
-    "title": "Time for Evening Walk",
-    "body": "A short check-in keeps the streak alive."
-  },
-  "data": {
-    "screen": "home",
-    "localDate": "2026-03-13",
-    "slotTime": "20:00",
-    "link": "/"
-  },
-  "webpush": {
-    "fcmOptions": {
-      "link": "/"
-    }
-  }
-}
 ```

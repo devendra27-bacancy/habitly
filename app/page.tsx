@@ -122,6 +122,8 @@ export default function Home() {
     error: notificationError,
     enableNotifications,
     disableNotifications,
+    enableEmailNotifications,
+    disableEmailNotifications,
   } = useNotifications();
 
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -613,6 +615,8 @@ export default function Home() {
         onDeleteAccount={() => { void handleDeleteAccount(); }}
         onEnableNotifications={() => { void enableNotifications(); }}
         onDisableNotifications={() => { void disableNotifications(); }}
+        onEnableEmailNotifications={() => { void enableEmailNotifications(); }}
+        onDisableEmailNotifications={() => { void disableEmailNotifications(); }}
         name={state.name}
         email={state.email}
         photoURL={state.photoURL}
@@ -625,6 +629,9 @@ export default function Home() {
         notificationsEnabled={notificationSettings.enabled}
         notificationPermission={notificationPermission}
         notificationTimezone={notificationSettings.timezone}
+        emailNotificationsEnabled={Boolean(notificationSettings.emailEnabled)}
+        emailNotificationAddress={notificationSettings.emailAddress || state.email}
+        emailNotificationsAvailable={false}
         notificationBusy={notificationBusy}
         notificationError={notificationError}
       />

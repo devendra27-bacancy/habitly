@@ -17,6 +17,8 @@ type ProfilePageProps = {
   onDeleteAccount: () => void;
   onEnableNotifications: () => void;
   onDisableNotifications: () => void;
+  onEnableEmailNotifications: () => void;
+  onDisableEmailNotifications: () => void;
   name: string;
   email?: string;
   photoURL?: string;
@@ -29,6 +31,9 @@ type ProfilePageProps = {
   notificationsEnabled: boolean;
   notificationPermission: "default" | "denied" | "granted" | "unsupported";
   notificationTimezone: string;
+  emailNotificationsEnabled: boolean;
+  emailNotificationAddress?: string;
+  emailNotificationsAvailable?: boolean;
   notificationBusy?: boolean;
   notificationError?: string | null;
 };
@@ -51,6 +56,8 @@ export function ProfilePage({
   onDeleteAccount,
   onEnableNotifications,
   onDisableNotifications,
+  onEnableEmailNotifications,
+  onDisableEmailNotifications,
   name,
   email,
   photoURL,
@@ -63,6 +70,9 @@ export function ProfilePage({
   notificationsEnabled,
   notificationPermission,
   notificationTimezone,
+  emailNotificationsEnabled,
+  emailNotificationAddress,
+  emailNotificationsAvailable = false,
   notificationBusy = false,
   notificationError = null,
 }: ProfilePageProps) {
@@ -133,23 +143,67 @@ export function ProfilePage({
               {permissionCopy}
               {notificationsSupported ? ` Your browser timezone is ${notificationTimezone}.` : ""}
             </div>
-            {notificationError ? <div className="profile-notification-error">{notificationError}</div> : null}
-            <div className="profile-notification-actions">
-              <button
-                className="profile-notification-button"
-                onClick={notificationsEnabled ? onDisableNotifications : onEnableNotifications}
-                disabled={notificationBusy || !notificationsSupported}
-              >
-                {notificationBusy
-                  ? "Updating reminders..."
-                  : notificationsEnabled
-                    ? "Turn off reminders"
-                    : "Turn on reminders"}
-              </button>
-              <div className={`profile-notification-chip ${notificationsEnabled ? "active" : ""}`}>
-                {notificationsEnabled ? "Active on this device" : "Currently off"}
+            <div className="profile-notification-stack">
+              <div className="profile-channel-row">
+                <div className="profile-channel-copy">
+                  <div className="profile-channel-title">Push reminders</div>
+                  <div className="profile-channel-subcopy">
+                    Timely nudges on this browser when a habit slot comes up.
+                  </div>
+                </div>
+                <div className="profile-notification-actions">
+                  <button
+                    className="profile-notification-button"
+                    onClick={notificationsEnabled ? onDisableNotifications : onEnableNotifications}
+                    disabled={notificationBusy || !notificationsSupported}
+                  >
+                    {notificationBusy
+                      ? "Updating..."
+                      : notificationsEnabled
+                        ? "Turn off push"
+                        : "Turn on push"}
+                  </button>
+                  <div className={`profile-notification-chip ${notificationsEnabled ? "active" : ""}`}>
+                    {notificationsEnabled ? "Active on this device" : "Currently off"}
+                  </div>
+                </div>
+              </div>
+              <div className="profile-channel-row">
+                <div className="profile-channel-copy">
+                  <div className="profile-channel-title">Email reminders</div>
+                  <div className="profile-channel-subcopy">
+                    {emailNotificationsAvailable
+                      ? emailNotificationAddress
+                        ? `Send reminder emails to ${emailNotificationAddress}.`
+                        : "No email address is available for reminder delivery yet."
+                      : "Email reminders are coming soon. Your account email is ready for future activation."}
+                  </div>
+                </div>
+                <div className="profile-notification-actions">
+                  <button
+                    className="profile-notification-button secondary"
+                    onClick={emailNotificationsEnabled ? onDisableEmailNotifications : onEnableEmailNotifications}
+                    disabled={notificationBusy || !emailNotificationAddress || !emailNotificationsAvailable}
+                  >
+                    {!emailNotificationsAvailable
+                      ? "Coming soon"
+                      : notificationBusy
+                        ? "Updating..."
+                        : emailNotificationsEnabled
+                          ? "Turn off email"
+                          : "Turn on email"}
+                  </button>
+                  <div className={`profile-notification-chip ${emailNotificationsEnabled ? "active" : ""}`}>
+                    {emailNotificationsAvailable
+                      ? emailNotificationsEnabled
+                        ? "Email is active"
+                        : "Email is off"
+                      : "Not active yet"}
+                  </div>
+                </div>
               </div>
             </div>
+            {notificationError ? <div className="profile-notification-error">{notificationError}</div> : null}
           </div>
 
           <div className="profile-grid">

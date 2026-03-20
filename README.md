@@ -58,17 +58,55 @@ firebase deploy --only firestore:rules
 
 - Browser push opt-in is handled in the app profile screen
 - Reminder token registration requires a valid `NEXT_PUBLIC_FIREBASE_VAPID_KEY`
-- Automatic reminder sends are handled by GitHub Actions running [scripts/reminder-runner.js](/D:/Anti/habitflow-next/scripts/reminder-runner.js)
-- Add these GitHub Actions secrets:
-  - `FIREBASE_SERVICE_ACCOUNT_JSON`
-  - `FIREBASE_PROJECT_ID`
-- The workflow lives in [.github/workflows/reminder-sender.yml](/D:/Anti/habitflow-next/.github/workflows/reminder-sender.yml)
-- Recommended production trigger: `cron-job.org` calling the GitHub Actions `workflow_dispatch` API every 5 minutes
+- Push and email reminder preferences are stored together in `users/{uid}.notificationSettings`
+- The production reminder sender now lives in the Cloudflare Worker at [workers/reminder-sender.mjs](/D:/Anti/habitflow-next/workers/reminder-sender.mjs)
+- The Worker is scheduled every 5 minutes via [wrangler.toml](/D:/Anti/habitflow-next/wrangler.toml)
+- GitHub Actions remains available as a temporary manual fallback through [.github/workflows/reminder-sender.yml](/D:/Anti/habitflow-next/.github/workflows/reminder-sender.yml)
 - Local manual testing:
 
 ```bash
 npm run reminders:run -- --dry-run
 ```
+
+### Cloudflare Reminder Setup
+
+The Cloudflare Worker uses Firestore REST and the FCM HTTP v1 API for production push reminders.
+
+Install / run locally:
+
+```bash
+npm run worker:dev
+```
+
+Deploy:
+
+```bash
+npm run worker:deploy
+```
+
+Required Worker vars / secrets for push:
+
+- `APP_ORIGIN`
+- `FIREBASE_PROJECT_ID`
+- `FIREBASE_CLIENT_EMAIL`
+- `FIREBASE_PRIVATE_KEY`
+- `DEBUG_TOKEN` for the `/debug` endpoint
+
+Suggested secret commands:
+
+```bash
+wrangler secret put FIREBASE_CLIENT_EMAIL
+wrangler secret put FIREBASE_PRIVATE_KEY
+wrangler secret put DEBUG_TOKEN
+```
+
+Optional future email bindings:
+
+- `MAILGUN_API_KEY`
+- `MAILGUN_DOMAIN`
+- `MAILGUN_FROM_EMAIL`
+
+Non-secret vars can be kept in [wrangler.toml](/D:/Anti/habitflow-next/wrangler.toml) or added with `wrangler secret put` if you prefer.
 
 ## Verification
 
@@ -89,4 +127,4 @@ npm run build
 - XP, streak, completion history, and level changes are written atomically so progression stays consistent after refresh
 - Local legacy data can be migrated into Firebase on first login
 - Web push reminder opt-in is handled per browser, with tokens stored under `users/{uid}/devices`
-- Reminder scheduling and exact `cron-job.org` request details are documented in [docs/notifications.md](/D:/Anti/habitflow-next/docs/notifications.md)
+- Reminder scheduling, Cloudflare setup, email delivery, and fallback notes are documented in [docs/notifications.md](/D:/Anti/habitflow-next/docs/notifications.md)

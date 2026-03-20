@@ -6,6 +6,9 @@ export type UserNotificationSettings = {
   timezone: string;
   updatedAt: string;
   tokenId?: string;
+  emailEnabled?: boolean;
+  emailAddress?: string;
+  emailUpdatedAt?: string;
 };
 
 export type NotificationDeviceRecord = {

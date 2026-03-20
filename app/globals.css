@@ -1479,6 +1479,39 @@ button:disabled {
   align-items: center;
 }
 
+.profile-notification-stack {
+  margin-top: 16px;
+  display: grid;
+  gap: 14px;
+}
+
+.profile-channel-row {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.52);
+  border: 1px solid rgba(92, 126, 88, 0.08);
+}
+
+.profile-channel-copy {
+  display: grid;
+  gap: 4px;
+}
+
+.profile-channel-title {
+  color: #2f4c35;
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.profile-channel-subcopy {
+  color: #5a6c5e;
+  line-height: 1.6;
+  font-size: 13px;
+  font-weight: 700;
+}
+
 .profile-notification-button {
   border: none;
   border-radius: 999px;
@@ -1488,6 +1521,12 @@ button:disabled {
   font-weight: 900;
   cursor: pointer;
   box-shadow: 0 14px 26px rgba(47, 76, 53, 0.16);
+}
+
+.profile-notification-button.secondary {
+  background: rgba(47, 76, 53, 0.12);
+  color: #2f4c35;
+  box-shadow: none;
 }
 
 .profile-notification-chip {

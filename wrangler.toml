@@ -1,0 +1,11 @@
+name = "habitly-reminder-sender"
+main = "workers/reminder-sender.mjs"
+compatibility_date = "2026-03-20"
+workers_dev = true
+
+[triggers]
+crons = ["*/5 * * * *"]
+
+[vars]
+APP_ORIGIN = "https://habitly.web.app"
+FIREBASE_PROJECT_ID = "habitflow-2055d"

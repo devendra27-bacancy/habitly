@@ -27,6 +27,8 @@ type UseNotificationsResult = {
   error: string | null;
   enableNotifications: () => Promise<boolean>;
   disableNotifications: () => Promise<boolean>;
+  enableEmailNotifications: () => Promise<boolean>;
+  disableEmailNotifications: () => Promise<boolean>;
 };
 
 const defaultSettings: UserNotificationSettings = {
@@ -34,6 +36,9 @@ const defaultSettings: UserNotificationSettings = {
   permission: "default",
   timezone: "UTC",
   updatedAt: "",
+  emailEnabled: false,
+  emailAddress: "",
+  emailUpdatedAt: "",
 };
 
 const firebaseEnv = {
@@ -175,6 +180,9 @@ export function useNotifications(): UseNotificationsResult {
       timezone,
       updatedAt: now,
       tokenId: tokenDocId,
+      emailEnabled: settings.emailEnabled ?? false,
+      emailAddress: settings.emailAddress ?? user.email ?? "",
+      emailUpdatedAt: settings.emailUpdatedAt ?? "",
     };
 
     await syncProfileSettings(nextSettings);
@@ -182,7 +190,7 @@ export function useNotifications(): UseNotificationsResult {
     setSettings(nextSettings);
     setPermission(permissionValue);
     return true;
-  }, [getMessagingClient, syncProfileSettings, user]);
+  }, [getMessagingClient, settings.emailAddress, settings.emailEnabled, settings.emailUpdatedAt, syncProfileSettings, user]);
 
   useEffect(() => {
     let cancelled = false;
@@ -216,6 +224,9 @@ export function useNotifications(): UseNotificationsResult {
           enabled: false,
           permission: getBrowserNotificationPermission(),
           timezone: getBrowserTimezone(),
+          emailEnabled: false,
+          emailAddress: user.email ?? current.emailAddress ?? "",
+          emailUpdatedAt: "",
         }));
         return;
       }
@@ -226,6 +237,9 @@ export function useNotifications(): UseNotificationsResult {
         timezone: notificationSettings.timezone ?? getBrowserTimezone(),
         updatedAt: notificationSettings.updatedAt ?? "",
         tokenId: notificationSettings.tokenId,
+        emailEnabled: Boolean(notificationSettings.emailEnabled),
+        emailAddress: notificationSettings.emailAddress ?? user.email ?? "",
+        emailUpdatedAt: notificationSettings.emailUpdatedAt ?? "",
       };
 
       setSettings(mergedSettings);
@@ -261,7 +275,7 @@ export function useNotifications(): UseNotificationsResult {
       unsubscribe = onMessage(messaging, (payload) => {
         const title = payload.notification?.title || "habitly reminder";
         const body = payload.notification?.body || "Your next habit is waiting for you.";
-        showToast("🔔", `${title} · ${body}`, "info");
+        showToast("Push", `${title} - ${body}`, "info");
       });
     })();
 
@@ -290,6 +304,9 @@ export function useNotifications(): UseNotificationsResult {
           permission: permissionResult,
           timezone: getBrowserTimezone(),
           updatedAt: new Date().toISOString(),
+          emailEnabled: settings.emailEnabled ?? false,
+          emailAddress: settings.emailAddress ?? user?.email ?? "",
+          emailUpdatedAt: settings.emailUpdatedAt ?? "",
         };
         await syncProfileSettings(deniedSettings);
         setSettings(deniedSettings);
@@ -298,7 +315,7 @@ export function useNotifications(): UseNotificationsResult {
       }
 
       await registerNotificationToken();
-      showToast("🔔", "Reminders are on for this browser.", "success");
+      showToast("On", "Reminders are on for this browser.", "success");
       return true;
     } catch (registrationError) {
       const message = getNotificationErrorMessage(registrationError);
@@ -308,7 +325,7 @@ export function useNotifications(): UseNotificationsResult {
     } finally {
       setIsBusy(false);
     }
-  }, [isSupported, registerNotificationToken, syncProfileSettings]);
+  }, [isSupported, registerNotificationToken, settings.emailAddress, settings.emailEnabled, settings.emailUpdatedAt, syncProfileSettings, user?.email]);
 
   const disableNotifications = useCallback(async () => {
     if (!user) return false;
@@ -332,12 +349,15 @@ export function useNotifications(): UseNotificationsResult {
         permission: permissionValue,
         timezone: getBrowserTimezone(),
         updatedAt: new Date().toISOString(),
+        emailEnabled: settings.emailEnabled ?? false,
+        emailAddress: settings.emailAddress ?? user.email ?? "",
+        emailUpdatedAt: settings.emailUpdatedAt ?? "",
       };
 
       await syncProfileSettings(nextSettings);
       tokenDocIdRef.current = null;
       setSettings(nextSettings);
-      showToast("🔕", "Reminders are off for this browser.", "info");
+      showToast("Off", "Reminders are off for this browser.", "info");
       return true;
     } catch (disableError) {
       const message = disableError instanceof Error ? disableError.message : "Could not turn off reminders.";
@@ -347,7 +367,74 @@ export function useNotifications(): UseNotificationsResult {
     } finally {
       setIsBusy(false);
     }
-  }, [getMessagingClient, syncProfileSettings, user]);
+  }, [getMessagingClient, settings.emailAddress, settings.emailEnabled, settings.emailUpdatedAt, syncProfileSettings, user]);
+
+  const enableEmailNotifications = useCallback(async () => {
+    if (!user) {
+      setError("You need to be signed in before enabling email reminders.");
+      return false;
+    }
+
+    const emailAddress = user.email?.trim() || settings.emailAddress?.trim() || "";
+    if (!emailAddress) {
+      const message = "Add an email address to your account before enabling email reminders.";
+      setError(message);
+      showToast("!", message, "warning");
+      return false;
+    }
+
+    setIsBusy(true);
+    setError(null);
+
+    try {
+      const nextSettings: UserNotificationSettings = {
+        ...settings,
+        emailEnabled: true,
+        emailAddress,
+        emailUpdatedAt: new Date().toISOString(),
+      };
+
+      await syncProfileSettings(nextSettings);
+      setSettings(nextSettings);
+      showToast("Mail", "Email reminders are on.", "success");
+      return true;
+    } catch (enableError) {
+      const message = enableError instanceof Error ? enableError.message : "Could not turn on email reminders.";
+      setError(message);
+      showToast("!", message, "error");
+      return false;
+    } finally {
+      setIsBusy(false);
+    }
+  }, [settings, syncProfileSettings, user]);
+
+  const disableEmailNotifications = useCallback(async () => {
+    if (!user) return false;
+
+    setIsBusy(true);
+    setError(null);
+
+    try {
+      const nextSettings: UserNotificationSettings = {
+        ...settings,
+        emailEnabled: false,
+        emailAddress: settings.emailAddress ?? user.email ?? "",
+        emailUpdatedAt: new Date().toISOString(),
+      };
+
+      await syncProfileSettings(nextSettings);
+      setSettings(nextSettings);
+      showToast("Mail", "Email reminders are off.", "info");
+      return true;
+    } catch (disableError) {
+      const message = disableError instanceof Error ? disableError.message : "Could not turn off email reminders.";
+      setError(message);
+      showToast("!", message, "error");
+      return false;
+    } finally {
+      setIsBusy(false);
+    }
+  }, [settings, syncProfileSettings, user]);
 
   return {
     isSupported,
@@ -357,5 +444,7 @@ export function useNotifications(): UseNotificationsResult {
     error,
     enableNotifications,
     disableNotifications,
+    enableEmailNotifications,
+    disableEmailNotifications,
   };
 }
