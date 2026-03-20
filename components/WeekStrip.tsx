@@ -1,8 +1,5 @@
 "use client";
 
-import { useRef } from "react";
-import { CalendarIcon } from "./Icons";
-
 type StripDay = {
   label: string;
   num: number;
@@ -16,77 +13,11 @@ type WeekStripProps = {
   days: StripDay[];
   selectedDateKey: string;
   onSelectDate: (dateKey: string) => void;
-  weekLabel: string;
-  pickerDateValue: string;
-  showCurrentWeekButton: boolean;
-  onPickerDateChange: (value: string) => void;
-  onPreviousWeek: () => void;
-  onNextWeek: () => void;
-  onCurrentWeek: () => void;
 };
 
-export function WeekStrip({
-  days,
-  selectedDateKey,
-  onSelectDate,
-  weekLabel,
-  pickerDateValue,
-  showCurrentWeekButton,
-  onPickerDateChange,
-  onPreviousWeek,
-  onNextWeek,
-  onCurrentWeek,
-}: WeekStripProps) {
-  const weekInputRef = useRef<HTMLInputElement | null>(null);
-
-  const openWeekPicker = () => {
-    const input = weekInputRef.current;
-    if (!input) return;
-
-    if (typeof input.showPicker === "function") {
-      input.showPicker();
-      return;
-    }
-
-    input.focus();
-    input.click();
-  };
-
+export function WeekStrip({ days, selectedDateKey, onSelectDate }: WeekStripProps) {
   return (
     <div className="week-strip-wrap">
-      <div className="week-toolbar">
-        <div className="week-toolbar-copy">
-          <div className="week-toolbar-label">{weekLabel}</div>
-        </div>
-        <div className="week-toolbar-actions">
-          <button type="button" className="week-nav-btn" onClick={onPreviousWeek} aria-label="Previous week">
-            ←
-          </button>
-          <div className="week-picker-trigger">
-            <input
-              ref={weekInputRef}
-              type="date"
-              className="week-input-hidden"
-              value={pickerDateValue}
-              onChange={(event) => onPickerDateChange(event.target.value)}
-              aria-label="Choose date"
-              tabIndex={-1}
-            />
-            <button type="button" className="week-nav-btn week-picker-btn" onClick={openWeekPicker} aria-label="Choose date">
-              <CalendarIcon className="toolbar-icon" />
-            </button>
-          </div>
-          <button type="button" className="week-nav-btn" onClick={onNextWeek} aria-label="Next week">
-            →
-          </button>
-          {showCurrentWeekButton ? (
-            <button type="button" className="week-today-btn" onClick={onCurrentWeek}>
-              Current
-            </button>
-          ) : null}
-        </div>
-      </div>
-
       <div className="week-strip">
         {days.map((day) => {
           const isSelected = day.dateKey === selectedDateKey;

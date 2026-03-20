@@ -215,7 +215,13 @@ button:disabled {
   flex: 1;
   min-width: 0;
 }
-.header-date { font-size: 13px; font-weight: 700; color: var(--text-muted); }
+.header-date {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--text-dark);
+  font-family: var(--font-nunito), sans-serif;
+  line-height: 1.1;
+}
 .header-sync {
   margin-top: 7px;
   font-size: 12px;
@@ -230,6 +236,7 @@ button:disabled {
   align-items: center;
   gap: 8px;
   flex-shrink: 0;
+  flex-wrap: wrap;
 }
 
 .xp-pill {
@@ -265,6 +272,40 @@ button:disabled {
   font-size: 11px;
 }
 
+.header-current-btn,
+.header-picker-btn {
+  border: none;
+  border-radius: 999px;
+  background: rgba(37, 57, 42, 0.08);
+  color: #304a36;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.header-current-btn {
+  padding: 10px 14px;
+  font-size: 12px;
+}
+
+.header-picker-wrap {
+  position: relative;
+}
+
+.header-picker-input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.header-picker-btn {
+  width: 38px;
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 @media (max-width: 767px) {
   .header-meta {
     flex-direction: column;
@@ -280,72 +321,6 @@ button:disabled {
 /* ===== WEEK STRIP ===== */
 .week-strip-wrap {
   padding: 0 20px 16px;
-}
-
-.week-toolbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 14px;
-  margin-bottom: 10px;
-}
-
-.week-toolbar-copy {
-  min-width: 0;
-}
-
-.week-toolbar-label {
-  font-family: var(--font-fredoka), cursive;
-  font-size: 22px;
-  color: #2f4334;
-  line-height: 1.05;
-}
-
-.week-toolbar-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
-
-.week-nav-btn,
-.week-today-btn {
-  border: none;
-  border-radius: 999px;
-  background: rgba(255,255,255,0.68);
-  color: #304a36;
-  font-weight: 900;
-  cursor: pointer;
-  box-shadow: var(--card-shadow);
-}
-
-.week-nav-btn {
-  width: 38px;
-  height: 38px;
-  font-size: 18px;
-}
-
-.week-today-btn {
-  padding: 10px 14px;
-  font-size: 12px;
-}
-
-.week-picker-trigger {
-  position: relative;
-}
-
-.week-picker-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.week-input-hidden {
-  position: absolute;
-  inset: 0;
-  opacity: 0;
-  pointer-events: none;
 }
 
 .week-strip {
@@ -1587,15 +1562,6 @@ button:disabled {
 
   .history-summary {
     grid-template-columns: 1fr;
-  }
-
-  .week-toolbar {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .week-toolbar-actions {
-    justify-content: stretch;
   }
 
   .history-day-head {

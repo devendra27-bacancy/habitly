@@ -413,11 +413,10 @@ export default function Home() {
       <ConfettiCanvas trigger={triggerConfetti} />
 
       <div className="app">
-        <Header name={state.name} player={state.player} streak={currentBestStreak} syncStatus={syncStatus} />
-        <WeekStrip
-          days={weekDays}
-          selectedDateKey={selectedDateKey}
-          onSelectDate={(dateKey) => setSelectedDateKey(dateKey)}
+        <Header
+          name={state.name}
+          player={state.player}
+          streak={currentBestStreak}
           weekLabel={weekLabel}
           pickerDateValue={pickerDateValue}
           showCurrentWeekButton={!isViewingCurrentWeek}
@@ -425,13 +424,17 @@ export default function Home() {
             if (!value) return;
             updateDisplayedWeek(parseDateKey(value));
           }}
-          onPreviousWeek={() => updateDisplayedWeek(addDays(displayWeekStart, -7))}
-          onNextWeek={() => updateDisplayedWeek(addDays(displayWeekStart, 7))}
           onCurrentWeek={() => {
             const currentWeekStart = getStartOfWeek(new Date());
             setDisplayWeekStartKey(localDateStr(currentWeekStart));
             setSelectedDateKey(todayKey);
           }}
+          syncStatus={syncStatus}
+        />
+        <WeekStrip
+          days={weekDays}
+          selectedDateKey={selectedDateKey}
+          onSelectDate={(dateKey) => setSelectedDateKey(dateKey)}
         />
         {selectedEntry?.isToday ? (
           <MascotArea habits={state.habits} syncStatus={syncStatus} errorState={errorState} />
