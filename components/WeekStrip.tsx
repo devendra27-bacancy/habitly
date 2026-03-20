@@ -15,6 +15,7 @@ type WeekStripProps = {
   onSelectDate: (dateKey: string) => void;
   weekLabel: string;
   weekValue: string;
+  showCurrentWeekButton: boolean;
   onWeekChange: (value: string) => void;
   onPreviousWeek: () => void;
   onNextWeek: () => void;
@@ -27,6 +28,7 @@ export function WeekStrip({
   onSelectDate,
   weekLabel,
   weekValue,
+  showCurrentWeekButton,
   onWeekChange,
   onPreviousWeek,
   onNextWeek,
@@ -53,9 +55,11 @@ export function WeekStrip({
           <button type="button" className="week-nav-btn" onClick={onNextWeek} aria-label="Next week">
             →
           </button>
-          <button type="button" className="week-today-btn" onClick={onCurrentWeek}>
-            Current
-          </button>
+          {showCurrentWeekButton ? (
+            <button type="button" className="week-today-btn" onClick={onCurrentWeek}>
+              Current
+            </button>
+          ) : null}
         </div>
       </div>
 

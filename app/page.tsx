@@ -256,6 +256,7 @@ export default function Home() {
       ? `${monthStart} ${dayStart} - ${dayEnd}, ${displayWeekStart.getFullYear()}`
       : `${monthStart} ${dayStart} - ${monthEnd} ${dayEnd}, ${weekEnd.getFullYear()}`;
   }, [displayWeekStart]);
+  const isViewingCurrentWeek = displayWeekStartKey === localDateStr(getStartOfWeek(new Date()));
   const selectedScheduledHabits = selectedEntry?.scheduled ?? [];
   const selectedDoneHabits = selectedEntry?.done ?? [];
   const selectedMissedHabits = selectedEntry?.missed ?? [];
@@ -337,13 +338,6 @@ export default function Home() {
       ? "Today's Habits"
       : `${selectedEntry.label}, ${selectedEntry.date}`
     : "Day view";
-  const selectedSectionCopy = selectedEntry
-    ? selectedEntry.isFuture
-      ? ""
-      : selectedEntry.isToday
-        ? "Track what is still ahead today, and mark completions as you go."
-        : "See what got done and what slipped on this day."
-    : "";
 
   const profileStats = [
     { label: "Current best streak", value: `${currentBestStreak} days`, tone: "sage" as const },
@@ -446,6 +440,7 @@ export default function Home() {
           onSelectDate={(dateKey) => setSelectedDateKey(dateKey)}
           weekLabel={weekLabel}
           weekValue={weekInputValue}
+          showCurrentWeekButton={!isViewingCurrentWeek}
           onWeekChange={(value) => {
             const nextWeekStart = fromWeekInputValue(value);
             if (nextWeekStart) {
@@ -465,7 +460,6 @@ export default function Home() {
         <div className="section-header">
           <div>
             <div className="section-title" style={{ padding: 0 }}>{selectedSectionTitle}</div>
-            {selectedSectionCopy ? <div className="section-copy">{selectedSectionCopy}</div> : null}
           </div>
           <div className="section-count">{selectedCount}</div>
         </div>

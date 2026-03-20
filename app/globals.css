@@ -494,13 +494,6 @@ button:disabled {
   padding: 3px 10px;
   border-radius: 50px;
 }
-.section-copy {
-  margin-top: -4px;
-  color: #68776b;
-  font-size: 13px;
-  font-weight: 700;
-}
-
 /* ===== HABIT CARDS ===== */
 .habits-list { padding: 0 20px; display:flex; flex-direction:column; gap:10px; }
 
