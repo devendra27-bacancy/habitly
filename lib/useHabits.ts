@@ -469,14 +469,6 @@ export function useHabits() {
       );
     };
 
-    if (!isDeletionInProgress()) {
-      void bootstrapProfile().catch((error) => {
-        console.error('Failed to bootstrap profile:', error);
-        setBootStatus('error');
-        setErrorState(buildErrorState('bootstrap', error, 'Could not prepare your habitly profile.', 'Retry loading'));
-      });
-    }
-
     const unsubUser = onSnapshot(
       userDocRef,
       async (snapshot) => {
@@ -897,6 +889,19 @@ export function useHabits() {
       completionHistory: optimisticHistory,
     }));
 
+    if (!alreadyDone) {
+      setTriggerConfetti((count) => count + 1);
+      setCompleteOverlayData({
+        habit: {
+          ...habit,
+          lastCompleted: today,
+          totalDone: optimisticTotalDone,
+        },
+        xp: optimisticXpGain,
+        bonusMsg: optimisticMilestoneReached ? ` (+${XP_STREAK_BONUS} streak bonus! 🔥)` : '',
+      });
+    }
+
     try {
       const result = await runTransaction(db, async (transaction) => {
         const [userSnapshot, habitSnapshot] = await Promise.all([
@@ -1001,15 +1006,6 @@ export function useHabits() {
         completionHistory: result.completionHistory,
       }));
 
-      if (!result.isUndo) {
-        setTriggerConfetti((count) => count + 1);
-        setCompleteOverlayData({
-          habit: result.habit,
-          xp: result.xpDelta,
-          bonusMsg: result.bonusMsg,
-        });
-      }
-
       if (result.leveledUp && result.player.level !== previousLevel) {
         setTimeout(() => setLevelUpData(result.player.level), 2500);
       }
@@ -1024,6 +1020,9 @@ export function useHabits() {
         player: previousPlayer,
         completionHistory: previousHistory,
       }));
+      if (!alreadyDone) {
+        setCompleteOverlayData(null);
+      }
       showToast('⚠️', extractErrorMessage(error, 'Could not save your progress.'), 'error');
       endSyncWithError(error, 'Could not save your progress.');
       return false;
