@@ -37,12 +37,12 @@ type CachedDashboard = {
   state: AppState;
 };
 
-function LoadingShell({ title, subtitle }: { title: string; subtitle: string }) {
+function LoadingShell({ title, subtitle, imageSrc = "/mascot/mascot_idle_default.png" }: { title: string; subtitle: string; imageSrc?: string }) {
   return (
     <div className="app-shell state-shell">
       <div className="state-card">
         <div className="state-mascot">
-          <Image src="/mascot/mascot_syncing_working.png" alt="Syncing mascot" width={160} height={160} priority />
+          <Image src={imageSrc} alt="Lizzo the habitly mascot" width={160} height={160} priority />
         </div>
         <h1>{title}</h1>
         <p>{subtitle}</p>
@@ -86,8 +86,9 @@ function formatHistoryLabel(date: Date, offset: number) {
 }
 
 function habitWasActiveOnDate(habit: Habit, dateKey: string) {
-  if (!habit.createdAt) return true;
-  return habit.createdAt <= dateKey;
+  const hasStarted = !habit.createdAt || habit.createdAt <= dateKey;
+  const hasNotEnded = !habit.endDate || habit.endDate >= dateKey;
+  return hasStarted && hasNotEnded;
 }
 
 function getStartOfWeek(date: Date) {
@@ -412,7 +413,7 @@ export default function Home() {
     return (
       <>
         <ToastContainer />
-        <LoadingShell title="Opening habitly" subtitle="Checking your session and waking up Moe..." />
+        <LoadingShell title="Opening habitly" subtitle="Checking your session and waking up Lizzo..." imageSrc="/mascot/mascot_idle_default.png" />
       </>
     );
   }
@@ -434,7 +435,7 @@ export default function Home() {
     return (
       <>
         <ToastContainer />
-        <LoadingShell title="Syncing your dashboard" subtitle="Pulling in habits, streaks, and your saved progress." />
+        <LoadingShell title="Syncing your dashboard" subtitle="Pulling in habits, streaks, and your saved progress." imageSrc="/mascot/mascot_progress_good.png" />
       </>
     );
   }
@@ -454,7 +455,9 @@ export default function Home() {
   }
 
   const today = todayStr();
-  const scheduledToday = activeState.habits.filter((habit) => isScheduledToday(habit.daysOfWeek));
+  const scheduledToday = activeState.habits.filter(
+    (habit) => isScheduledToday(habit.daysOfWeek) && habitWasActiveOnDate(habit, today),
+  );
   const sortedHabits = [...scheduledToday].sort((a, b) => {
     const aDone = a.lastCompleted === today ? 1 : 0;
     const bDone = b.lastCompleted === today ? 1 : 0;

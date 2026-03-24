@@ -496,7 +496,8 @@ function buildEmailPayload(env, habits, globalStreak = 0) {
 function isHabitDue(habit, localDate, dayOfWeek) {
   const days = Array.isArray(habit.daysOfWeek) ? habit.daysOfWeek : [];
   const createdAt = typeof habit.createdAt === "string" ? habit.createdAt : localDate;
-  return days.includes(dayOfWeek) && createdAt <= localDate;
+  const endDate = typeof habit.endDate === "string" && habit.endDate ? habit.endDate : null;
+  return days.includes(dayOfWeek) && createdAt <= localDate && (!endDate || endDate >= localDate);
 }
 
 function isInvalidFcmError(errorPayload) {

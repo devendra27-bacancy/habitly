@@ -150,7 +150,7 @@ export function MascotArea({ habits, globalStreak, syncStatus = "idle", errorSta
         />
       </div>
       <div className="mascot-copy">
-        <div className="mascot-kicker">Moe&apos;s take</div>
+        <div className="mascot-kicker">Lizzo&apos;s take</div>
         <div className="mascot-tip">{tip}</div>
       </div>
     </div>

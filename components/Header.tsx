@@ -50,7 +50,23 @@ export function Header({
       </div>
       <div className="header-meta">
         <div className="header-meta-copy">
-          <div className="header-date">{weekLabel}</div>
+          <div className="header-date-row">
+            <div className="header-date">{weekLabel}</div>
+            <div className="header-picker-wrap">
+              <input
+                ref={pickerInputRef}
+                type="date"
+                className="header-picker-input"
+                value={pickerDateValue}
+                onChange={(event) => onPickerDateChange(event.target.value)}
+                aria-label="Choose date"
+                tabIndex={-1}
+              />
+              <button type="button" className="header-picker-btn" onClick={openDatePicker} aria-label="Choose date">
+                <CalendarIcon className="toolbar-icon" />
+              </button>
+            </div>
+          </div>
           {syncStatus !== "idle" ? (
             <div className={`header-sync header-sync-${syncStatus}`}>
               {syncStatus === "syncing"
@@ -75,20 +91,6 @@ export function Header({
               Current
             </button>
           ) : null}
-          <div className="header-picker-wrap">
-            <input
-              ref={pickerInputRef}
-              type="date"
-              className="header-picker-input"
-              value={pickerDateValue}
-              onChange={(event) => onPickerDateChange(event.target.value)}
-              aria-label="Choose date"
-              tabIndex={-1}
-            />
-            <button type="button" className="header-picker-btn" onClick={openDatePicker} aria-label="Choose date">
-              <CalendarIcon className="toolbar-icon" />
-            </button>
-          </div>
         </div>
       </div>
     </div>

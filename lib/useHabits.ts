@@ -36,6 +36,7 @@ export type Habit = {
   totalDone: number;
   lastCompleted: string | null;
   createdAt: string;
+  endDate?: string | null;
 };
 
 export type PlayerState = {
@@ -88,6 +89,7 @@ type LegacyHabit = {
   totalDone?: number;
   lastCompleted?: string | null;
   createdAt?: string;
+  endDate?: string | null;
 };
 
 type LegacyAppState = {
@@ -210,6 +212,7 @@ function sanitizeHabit(legacyHabit: LegacyHabit, index: number): Habit | null {
     totalDone: typeof legacyHabit.totalDone === 'number' ? legacyHabit.totalDone : 0,
     lastCompleted: typeof legacyHabit.lastCompleted === 'string' ? legacyHabit.lastCompleted : null,
     createdAt: typeof legacyHabit.createdAt === 'string' ? legacyHabit.createdAt : todayStr(),
+    endDate: typeof legacyHabit.endDate === 'string' && legacyHabit.endDate ? legacyHabit.endDate : null,
   };
 }
 
@@ -286,7 +289,9 @@ function getScheduledHabitsForDate(habits: Habit[], dateKey: string): Habit[] {
 
   return habits.filter((habit) => {
     const days = Array.isArray(habit.daysOfWeek) && habit.daysOfWeek.length > 0 ? habit.daysOfWeek : ALL_DAYS;
-    return days.includes(dayOfWeek) && (!habit.createdAt || habit.createdAt <= dateKey);
+    const hasStarted = !habit.createdAt || habit.createdAt <= dateKey;
+    const hasNotEnded = !habit.endDate || habit.endDate >= dateKey;
+    return days.includes(dayOfWeek) && hasStarted && hasNotEnded;
   });
 }
 

@@ -66,11 +66,11 @@ export default function Login() {
       <div className="login-layout">
         <section className="login-story">
           <div className="login-mascot-card">
-            <div className="login-mascot-bubble">Moe is ready for today.</div>
+            <div className="login-mascot-bubble">Lizzo is ready for today.</div>
             <div className="login-mascot-art">
               <Image
                 src="/mascot/mascot_morning_start.png"
-                alt="Moe the habitly mascot"
+                alt="Lizzo the habitly mascot"
                 width={340}
                 height={340}
                 priority

@@ -17,7 +17,7 @@ const fredoka = Fredoka({
 
 export const metadata: Metadata = {
   title: "Habitly",
-  description: "Go for better habits with Moe!",
+  description: "Go for better habits with Lizzo!",
   manifest: "/site.webmanifest",
   icons: {
     icon: [

@@ -1,6 +1,4 @@
 "use client";
-
-import Image from "next/image";
 import { logout } from "../lib/auth";
 import { CloseIcon } from "./Icons";
 
@@ -120,9 +118,6 @@ export function ProfilePage({
               ) : (
                 <div className="profile-avatar-fallback">{getInitials(name)}</div>
               )}
-              <div className="profile-mascot-chip">
-                <Image src="/mascot/mascot_idle_default.png" alt="habitly mascot" width={92} height={92} />
-              </div>
             </div>
             <div className="profile-name-row">
               <div>

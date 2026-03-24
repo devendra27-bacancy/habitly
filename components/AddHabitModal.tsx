@@ -118,6 +118,7 @@ export function AddHabitModal({
   const [days, setDays] = useState<number[]>([...ALL_DAYS]);
   const [emoji, setEmoji] = useState(EMOJIS[0]);
   const [color, setColor] = useState(COLORS[0]);
+  const [endDate, setEndDate] = useState("");
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -132,6 +133,7 @@ export function AddHabitModal({
       setDays([...(editData.daysOfWeek || ALL_DAYS)]);
       setEmoji(editData.emoji);
       setColor(editData.color);
+      setEndDate(editData.endDate || "");
     } else {
       setName("");
       setTimeHour("8");
@@ -140,6 +142,7 @@ export function AddHabitModal({
       setDays([...ALL_DAYS]);
       setEmoji(EMOJIS[0]);
       setColor(COLORS[0]);
+      setEndDate("");
     }
 
     setError("");
@@ -159,6 +162,11 @@ export function AddHabitModal({
       return;
     }
 
+    if (editData?.createdAt && endDate && endDate < editData.createdAt) {
+      setError("The end date needs to be on or after the habit start date.");
+      return;
+    }
+
     setError("");
     onSave(editData ? editData.id : null, {
       name: finalName,
@@ -166,6 +174,7 @@ export function AddHabitModal({
       daysOfWeek: [...days].sort((a, b) => a - b),
       emoji,
       color,
+      endDate: endDate || null,
     });
   };
 
@@ -247,6 +256,17 @@ export function AddHabitModal({
                   ))}
                 </select>
               </div>
+            </div>
+            <div className="form-group">
+              <label className="form-label">End Date</label>
+              <input
+                className="form-input"
+                type="date"
+                value={endDate}
+                onChange={(event) => setEndDate(event.target.value)}
+                min={editData?.createdAt || undefined}
+                disabled={isSaving || isDeleting}
+              />
             </div>
           </div>
 
