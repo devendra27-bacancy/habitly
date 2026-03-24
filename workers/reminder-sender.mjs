@@ -456,13 +456,12 @@ function buildHabitNotificationIcon(habit) {
   const color = typeof habit?.color === "string" && habit.color ? habit.color : "#5f8e59";
   const safeColor = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(color) ? color : "#5f8e59";
   const rgb = hexToRgb(safeColor) ?? { r: 95, g: 142, b: 89 };
-  const tintedBackground = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.133)`;
-  const tintedRing = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.24)`;
+  const accentRing = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.28)`;
   const svg = `
     <svg xmlns="http://www.w3.org/2000/svg" width="192" height="192" viewBox="0 0 192 192">
-      <rect width="192" height="192" rx="96" fill="${tintedBackground}" />
-      <circle cx="96" cy="96" r="94" fill="${tintedBackground}" stroke="${tintedRing}" stroke-width="4" />
-      <text x="96" y="112" text-anchor="middle" font-size="88">${emoji}</text>
+      <rect width="192" height="192" rx="96" fill="#ffffff" />
+      <circle cx="96" cy="96" r="92" fill="#ffffff" stroke="${accentRing}" stroke-width="4" />
+      <text x="96" y="96" text-anchor="middle" dominant-baseline="middle" font-size="88">${emoji}</text>
     </svg>
   `.trim();
 
