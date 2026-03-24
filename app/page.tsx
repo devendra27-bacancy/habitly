@@ -498,7 +498,7 @@ export default function Home() {
       ? selectedScheduledHabits.length
       : selectedDoneHabits.length + selectedMissedHabits.length
     : 0;
-  const analytics = useMemo<ProfileAnalyticsData>(() => {
+  const analytics: ProfileAnalyticsData = (() => {
     const buildDateKeys = (count: number) =>
       Array.from({ length: count }, (_, index) => localDateStr(addDays(todayDate, -(count - 1 - index))));
 
@@ -632,7 +632,7 @@ export default function Home() {
         },
       ],
     };
-  }, [activeState.completionHistory, activeState.habits, activeState.player.longestStreak, todayDate, todayKey]);
+  })();
   const selectedSectionTitle = selectedEntry
     ? selectedEntry.isToday
       ? "Today's Habits"
