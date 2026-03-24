@@ -84,7 +84,7 @@ export function HistoryModal({ isOpen, onClose, entry, player }: HistoryModalPro
           <div className="progression-copy">
             {entry.isFuture
               ? "Future days stay read-only here. You can preview scheduled habits above, and once the day passes the strip becomes clickable with full done and missed details."
-              : <>Each completed habit gives <strong>10 XP</strong>. Reaching a streak milestone at <strong>7, 14, 21, 30, 60,</strong> or <strong>100</strong> days adds an extra <strong>25 XP</strong>. Every <strong>100 XP</strong> levels you up.</>}
+              : <>Each completed habit gives <strong>10 XP</strong>. When you finish every scheduled habit for the day, your global streak moves forward. Reaching a streak milestone at <strong>7, 14, 21, 30, 60,</strong> or <strong>100</strong> days adds an extra <strong>25 XP</strong>. Every <strong>100 XP</strong> levels you up.</>}
           </div>
         </div>
 

@@ -20,7 +20,7 @@ import { FirebaseError } from 'firebase/app';
 import { useAuth } from '../components/AuthProvider';
 import { showToast } from '../components/ToastContainer';
 import { db } from './firebase';
-import { ALL_DAYS, isScheduledToday, lastScheduledDayBefore, todayStr } from './dates';
+import { ALL_DAYS, isScheduledToday, localDateStr, todayStr } from './dates';
 
 export { todayStr, lastScheduledDayBefore, isScheduledToday, ALL_DAYS, DAY_LABELS, formatTime, localDateStr } from './dates';
 
@@ -42,6 +42,8 @@ export type PlayerState = {
   xp: number;
   totalXp: number;
   level: number;
+  streak: number;
+  longestStreak: number;
 };
 
 export type CompletionHistory = Record<string, string[]>;
@@ -125,7 +127,7 @@ const MIGRATION_DECISION_PREFIX = 'habitflow_migration_seen_';
 const ACCOUNT_DELETION_PREFIX = 'habitflow_account_deleting_';
 const SAVE_FEEDBACK_DELAY_MS = 1400;
 
-const defaultPlayerState: PlayerState = { xp: 0, totalXp: 0, level: 1 };
+const defaultPlayerState: PlayerState = { xp: 0, totalXp: 0, level: 1, streak: 0, longestStreak: 0 };
 
 const defaultState: AppState = {
   uid: null,
@@ -234,6 +236,8 @@ function parseLegacyState(): MigrationPreview | null {
         xp: typeof player.xp === 'number' ? player.xp : defaultPlayerState.xp,
         totalXp: typeof player.totalXp === 'number' ? player.totalXp : defaultPlayerState.totalXp,
         level: typeof player.level === 'number' ? player.level : defaultPlayerState.level,
+        streak: typeof player.streak === 'number' ? player.streak : defaultPlayerState.streak,
+        longestStreak: typeof player.longestStreak === 'number' ? player.longestStreak : defaultPlayerState.longestStreak,
       },
       habits,
       completionHistory: Object.fromEntries(
@@ -263,6 +267,105 @@ function stripHabitFromCompletionHistory(history: CompletionHistory, habitId: st
       .map(([date, ids]) => [date, ids.filter((id) => id !== habitId)] as const)
       .filter(([, ids]) => ids.length > 0),
   );
+}
+
+function parseDateKey(dateKey: string): Date {
+  const [year, month, day] = dateKey.split('-').map(Number);
+  return new Date(year, month - 1, day);
+}
+
+function addDays(date: Date, amount: number): Date {
+  const next = new Date(date);
+  next.setDate(next.getDate() + amount);
+  return next;
+}
+
+function getScheduledHabitsForDate(habits: Habit[], dateKey: string): Habit[] {
+  const date = parseDateKey(dateKey);
+  const dayOfWeek = date.getDay();
+
+  return habits.filter((habit) => {
+    const days = Array.isArray(habit.daysOfWeek) && habit.daysOfWeek.length > 0 ? habit.daysOfWeek : ALL_DAYS;
+    return days.includes(dayOfWeek) && (!habit.createdAt || habit.createdAt <= dateKey);
+  });
+}
+
+function isDayFullyCompleted(habits: Habit[], history: CompletionHistory, dateKey: string): boolean {
+  const scheduled = getScheduledHabitsForDate(habits, dateKey);
+  if (scheduled.length === 0) {
+    return false;
+  }
+
+  const completedIds = new Set(history[dateKey] || []);
+  return scheduled.every((habit) => completedIds.has(habit.id));
+}
+
+function getGlobalStreakStats(habits: Habit[], history: CompletionHistory) {
+  if (habits.length === 0) {
+    return { streak: 0, longestStreak: 0 };
+  }
+
+  const createdAtDates = habits
+    .map((habit) => habit.createdAt)
+    .filter((value): value is string => typeof value === 'string' && value.length > 0);
+  const earliestDateKey = createdAtDates.length > 0
+    ? createdAtDates.reduce((earliest, value) => (value < earliest ? value : earliest))
+    : todayStr();
+
+  const startDate = parseDateKey(earliestDateKey);
+  const todayDate = parseDateKey(todayStr());
+  let cursor = new Date(startDate);
+  let running = 0;
+  let longestStreak = 0;
+
+  while (cursor <= todayDate) {
+    const dateKey = localDateStr(cursor);
+    const scheduled = getScheduledHabitsForDate(habits, dateKey);
+
+    if (scheduled.length > 0) {
+      if (isDayFullyCompleted(habits, history, dateKey)) {
+        running += 1;
+        longestStreak = Math.max(longestStreak, running);
+      } else {
+        running = 0;
+      }
+    }
+
+    cursor = addDays(cursor, 1);
+  }
+
+  let streak = 0;
+  cursor = parseDateKey(todayStr());
+
+  while (cursor >= startDate) {
+    const dateKey = localDateStr(cursor);
+    const scheduled = getScheduledHabitsForDate(habits, dateKey);
+
+    if (scheduled.length === 0) {
+      cursor = addDays(cursor, -1);
+      continue;
+    }
+
+    if (!isDayFullyCompleted(habits, history, dateKey)) {
+      break;
+    }
+
+    streak += 1;
+    cursor = addDays(cursor, -1);
+  }
+
+  return { streak, longestStreak };
+}
+
+function derivePlayerState(player: PlayerState | undefined, habits: Habit[], history: CompletionHistory): PlayerState {
+  const basePlayer = player ?? defaultPlayerState;
+  const streakStats = getGlobalStreakStats(habits, history);
+
+  return {
+    ...basePlayer,
+    streak: streakStats.streak,
+    longestStreak: streakStats.longestStreak,
+  };
 }
 
 export function useHabits() {
@@ -395,6 +498,7 @@ export function useHabits() {
         const resolvedName = typeof data.name === 'string' && data.name.trim()
           ? data.name
           : deriveNameFromAuth(user);
+        const resolvedHistory = data.completionHistory ?? {};
 
         if ((!data.name || !data.name.trim()) && !isDeletionInProgress()) {
           void setDoc(
@@ -414,8 +518,8 @@ export function useHabits() {
           name: resolvedName,
           email: user.email ?? data.email ?? prev.email,
           photoURL: user.photoURL ?? data.photoURL ?? prev.photoURL,
-          player: data.player ?? prev.player,
-          completionHistory: data.completionHistory ?? prev.completionHistory,
+          player: derivePlayerState((data.player as PlayerState | undefined) ?? prev.player, prev.habits, resolvedHistory),
+          completionHistory: resolvedHistory,
         }));
 
         setBootStatus('ready');
@@ -433,17 +537,11 @@ export function useHabits() {
       habitsQuery,
       async (snapshot) => {
         const habits = snapshot.docs.map((habitDoc) => ({ id: habitDoc.id, ...habitDoc.data() }) as Habit);
-        const today = todayStr();
-
-        habits.forEach((habit) => {
-          if (!habit.lastCompleted) return;
-          const lastSched = lastScheduledDayBefore(habit.daysOfWeek, today);
-          if (lastSched && habit.lastCompleted < lastSched && habit.streak > 0) {
-            void updateDoc(doc(habitsColRef, habit.id), { streak: 0 }).catch(console.error);
-          }
-        });
-
-        setState((prev) => ({ ...prev, habits }));
+        setState((prev) => ({
+          ...prev,
+          habits,
+          player: derivePlayerState(prev.player, habits, prev.completionHistory),
+        }));
         setBootStatus('ready');
         setErrorState((current) => (current?.scope === 'habits' ? null : current));
 
@@ -522,10 +620,19 @@ export function useHabits() {
       lastCompleted: null,
       createdAt: todayStr(),
     };
+    const nextHabitsAfterAdd = [optimisticHabit, ...state.habits];
+    const nextPlayerAfterAdd = derivePlayerState(state.player, nextHabitsAfterAdd, state.completionHistory);
 
     beginSync();
     updatePending((current) => ({ ...current, adding: true }));
-    setState((prev) => ({ ...prev, habits: [optimisticHabit, ...prev.habits] }));
+    setState((prev) => {
+      const nextHabits = [optimisticHabit, ...prev.habits];
+      return {
+        ...prev,
+        habits: nextHabits,
+        player: derivePlayerState(prev.player, nextHabits, prev.completionHistory),
+      };
+    });
 
     try {
       await addDoc(collection(db, 'users', user.uid, 'habits'), {
@@ -536,11 +643,19 @@ export function useHabits() {
         lastCompleted: null,
         createdAt: todayStr(),
       });
+      await setDoc(doc(db, 'users', user.uid), { player: nextPlayerAfterAdd }, { merge: true });
       showToast('🌱', 'Habit saved', 'success');
       markSaved();
       return true;
     } catch (error) {
-      setState((prev) => ({ ...prev, habits: prev.habits.filter((item) => item.id !== tempId) }));
+      setState((prev) => {
+        const nextHabits = prev.habits.filter((item) => item.id !== tempId);
+        return {
+          ...prev,
+          habits: nextHabits,
+          player: derivePlayerState(prev.player, nextHabits, prev.completionHistory),
+        };
+      });
       showToast('⚠️', extractErrorMessage(error, 'Could not save your habit.'), 'error');
       endSyncWithError(error, 'Could not save your habit.');
       return false;
@@ -554,24 +669,35 @@ export function useHabits() {
 
     const previousHabit = state.habits.find((habit) => habit.id === id);
     if (!previousHabit) return false;
+    const nextHabitsAfterEdit = state.habits.map((habit) => (habit.id === id ? { ...habit, ...updates } : habit));
+    const nextPlayerAfterEdit = derivePlayerState(state.player, nextHabitsAfterEdit, state.completionHistory);
 
     beginSync();
     updatePending((current) => ({ ...current, editingIds: addId(current.editingIds, id) }));
-    setState((prev) => ({
-      ...prev,
-      habits: prev.habits.map((habit) => (habit.id === id ? { ...habit, ...updates } : habit)),
-    }));
+    setState((prev) => {
+      const nextHabits = prev.habits.map((habit) => (habit.id === id ? { ...habit, ...updates } : habit));
+      return {
+        ...prev,
+        habits: nextHabits,
+        player: derivePlayerState(prev.player, nextHabits, prev.completionHistory),
+      };
+    });
 
     try {
       await updateDoc(doc(db, 'users', user.uid, 'habits', id), updates);
+      await setDoc(doc(db, 'users', user.uid), { player: nextPlayerAfterEdit }, { merge: true });
       showToast('✨', 'Habit updated', 'success');
       markSaved();
       return true;
     } catch (error) {
-      setState((prev) => ({
-        ...prev,
-        habits: prev.habits.map((habit) => (habit.id === id ? previousHabit : habit)),
-      }));
+      setState((prev) => {
+        const nextHabits = prev.habits.map((habit) => (habit.id === id ? previousHabit : habit));
+        return {
+          ...prev,
+          habits: nextHabits,
+          player: derivePlayerState(prev.player, nextHabits, prev.completionHistory),
+        };
+      });
       showToast('⚠️', extractErrorMessage(error, 'Could not update your habit.'), 'error');
       endSyncWithError(error, 'Could not update your habit.');
       return false;
@@ -590,26 +716,39 @@ export function useHabits() {
 
     beginSync();
     updatePending((current) => ({ ...current, deletingIds: addId(current.deletingIds, id) }));
-    setState((prev) => ({
-      ...prev,
-      habits: prev.habits.filter((habit) => habit.id !== id),
-      completionHistory: stripHabitFromCompletionHistory(prev.completionHistory, id),
-    }));
+    setState((prev) => {
+      const nextHabits = prev.habits.filter((habit) => habit.id !== id);
+      const nextCompletionHistory = stripHabitFromCompletionHistory(prev.completionHistory, id);
+      return {
+        ...prev,
+        habits: nextHabits,
+        completionHistory: nextCompletionHistory,
+        player: derivePlayerState(prev.player, nextHabits, nextCompletionHistory),
+      };
+    });
 
     try {
       const batch = writeBatch(db);
       batch.delete(doc(db, 'users', user.uid, 'habits', id));
-      batch.set(doc(db, 'users', user.uid), { completionHistory: nextHistory }, { merge: true });
+      batch.set(
+        doc(db, 'users', user.uid),
+        { completionHistory: nextHistory, player: derivePlayerState(state.player, state.habits.filter((habit) => habit.id !== id), nextHistory) },
+        { merge: true },
+      );
       await batch.commit();
       showToast('🗑️', 'Habit deleted', 'info');
       markSaved();
       return true;
     } catch (error) {
-      setState((prev) => ({
-        ...prev,
-        habits: [previousHabit, ...prev.habits].sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
-        completionHistory: previousHistory,
-      }));
+      setState((prev) => {
+        const nextHabits = [previousHabit, ...prev.habits].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+        return {
+          ...prev,
+          habits: nextHabits,
+          completionHistory: previousHistory,
+          player: derivePlayerState(prev.player, nextHabits, previousHistory),
+        };
+      });
       showToast('⚠️', extractErrorMessage(error, 'Could not delete your habit.'), 'error');
       endSyncWithError(error, 'Could not delete your habit.');
       return false;
@@ -658,13 +797,14 @@ export function useHabits() {
         ]),
       );
 
+      const migratedPlayer = derivePlayerState(migrationPreview.player, migrationPreview.habits, completionHistory);
       batch.set(
         userDocRef,
         {
           name: migrationPreview.name,
           email: user.email ?? '',
           photoURL: user.photoURL ?? '',
-          player: migrationPreview.player,
+          player: migratedPlayer,
           completionHistory,
         },
         { merge: true },
@@ -706,29 +846,9 @@ export function useHabits() {
     const previousHistory = state.completionHistory;
     const previousLevel = state.player.level;
     const alreadyDone = habit.lastCompleted === today;
-    const lastSched = lastScheduledDayBefore(habit.daysOfWeek, today);
-    const optimisticStreak = alreadyDone
-      ? Math.max(0, habit.streak - 1)
-      : habit.lastCompleted && lastSched && habit.lastCompleted >= lastSched
-        ? habit.streak + 1
-        : 1;
     const optimisticTotalDone = alreadyDone ? Math.max(0, habit.totalDone - 1) : habit.totalDone + 1;
-    const optimisticLongest = alreadyDone ? habit.longestStreak : Math.max(habit.longestStreak, optimisticStreak);
-    const optimisticMilestone = !alreadyDone && STREAK_MILESTONES.includes(optimisticStreak);
-    const optimisticXpGain = alreadyDone ? -XP_PER_COMPLETION : optimisticMilestone ? XP_PER_COMPLETION + XP_STREAK_BONUS : XP_PER_COMPLETION;
+    const wasDayComplete = isDayFullyCompleted(state.habits, state.completionHistory, today);
     const optimisticPlayer = { ...state.player };
-
-    if (alreadyDone) {
-      optimisticPlayer.xp = Math.max(0, optimisticPlayer.xp - XP_PER_COMPLETION);
-      optimisticPlayer.totalXp = Math.max(0, optimisticPlayer.totalXp - XP_PER_COMPLETION);
-    } else {
-      optimisticPlayer.xp += optimisticXpGain;
-      optimisticPlayer.totalXp += optimisticXpGain;
-      while (optimisticPlayer.xp >= XP_PER_LEVEL) {
-        optimisticPlayer.xp -= XP_PER_LEVEL;
-        optimisticPlayer.level += 1;
-      }
-    }
 
     const optimisticHistory: CompletionHistory = { ...state.completionHistory };
     if (alreadyDone) {
@@ -737,21 +857,42 @@ export function useHabits() {
       optimisticHistory[today] = [...(optimisticHistory[today] || []), habitId];
     }
 
+    const optimisticHabits = state.habits.map((item) => (
+      item.id === habitId
+        ? {
+            ...item,
+            lastCompleted: alreadyDone ? null : today,
+            totalDone: optimisticTotalDone,
+          }
+        : item
+    ));
+    const optimisticDerivedPlayer = derivePlayerState(optimisticPlayer, optimisticHabits, optimisticHistory);
+    const isCompletingDay = !alreadyDone && !wasDayComplete && isDayFullyCompleted(optimisticHabits, optimisticHistory, today);
+    const isUndoingCompletedDay = alreadyDone && wasDayComplete;
+    const optimisticMilestoneReached = isCompletingDay && STREAK_MILESTONES.includes(optimisticDerivedPlayer.streak);
+    const optimisticXpGain = alreadyDone
+      ? -(XP_PER_COMPLETION + (isUndoingCompletedDay && STREAK_MILESTONES.includes(state.player.streak) ? XP_STREAK_BONUS : 0))
+      : XP_PER_COMPLETION + (optimisticMilestoneReached ? XP_STREAK_BONUS : 0);
+
+    if (alreadyDone) {
+      optimisticPlayer.xp = Math.max(0, optimisticPlayer.xp + optimisticXpGain);
+      optimisticPlayer.totalXp = Math.max(0, optimisticPlayer.totalXp + optimisticXpGain);
+    } else {
+      optimisticPlayer.xp += optimisticXpGain;
+      optimisticPlayer.totalXp += optimisticXpGain;
+      while (optimisticPlayer.xp >= XP_PER_LEVEL) {
+        optimisticPlayer.xp -= XP_PER_LEVEL;
+        optimisticPlayer.level += 1;
+      }
+    }
+    optimisticPlayer.streak = optimisticDerivedPlayer.streak;
+    optimisticPlayer.longestStreak = optimisticDerivedPlayer.longestStreak;
+
     beginSync();
     updatePending((current) => ({ ...current, togglingIds: addId(current.togglingIds, habitId) }));
     setState((prev) => ({
       ...prev,
-      habits: prev.habits.map((item) => (
-        item.id === habitId
-          ? {
-              ...item,
-              lastCompleted: alreadyDone ? null : today,
-              streak: optimisticStreak,
-              totalDone: optimisticTotalDone,
-              longestStreak: optimisticLongest,
-            }
-          : item
-      )),
+      habits: optimisticHabits,
       player: optimisticPlayer,
       completionHistory: optimisticHistory,
     }));
@@ -768,49 +909,57 @@ export function useHabits() {
         }
 
         const profileData = (userSnapshot.data() as ProfileDoc | undefined) ?? {};
-        const profilePlayer = profileData.player ?? defaultPlayerState;
+        const profilePlayer = (profileData.player as PlayerState | undefined) ?? defaultPlayerState;
         const profileHistory = profileData.completionHistory ?? {};
         const habitData = { id: habitSnapshot.id, ...habitSnapshot.data() } as Habit;
         const isUndo = habitData.lastCompleted === today;
-        const profileLastSched = lastScheduledDayBefore(habitData.daysOfWeek, today);
-        const newStreak = isUndo
-          ? Math.max(0, habitData.streak - 1)
-          : habitData.lastCompleted && profileLastSched && habitData.lastCompleted >= profileLastSched
-            ? habitData.streak + 1
-            : 1;
         const newTotal = isUndo ? Math.max(0, habitData.totalDone - 1) : habitData.totalDone + 1;
-        const newLongest = isUndo ? habitData.longestStreak : Math.max(habitData.longestStreak, newStreak);
         const nextPlayer = { ...profilePlayer };
         const nextHistory: CompletionHistory = { ...profileHistory };
+        const currentHabits = state.habits.map((item) => (item.id === habitId ? { ...habitData } : item));
         let xpDelta = 0;
         let leveledUp = false;
         let bonusMsg = '';
+        const wasProfileDayComplete = isDayFullyCompleted(currentHabits, profileHistory, today);
 
         if (isUndo) {
           transaction.update(habitDocRef, {
             lastCompleted: null,
-            streak: newStreak,
             totalDone: newTotal,
           });
-
-          nextPlayer.xp = Math.max(0, nextPlayer.xp - XP_PER_COMPLETION);
-          nextPlayer.totalXp = Math.max(0, nextPlayer.totalXp - XP_PER_COMPLETION);
           nextHistory[today] = (nextHistory[today] || []).filter((id) => id !== habitId);
-          xpDelta = -XP_PER_COMPLETION;
         } else {
           transaction.update(habitDocRef, {
             lastCompleted: today,
-            streak: newStreak,
             totalDone: newTotal,
-            longestStreak: newLongest,
           });
+          nextHistory[today] = [...(nextHistory[today] || []), habitId];
+        }
 
-          const isMilestone = STREAK_MILESTONES.includes(newStreak);
-          xpDelta = isMilestone ? XP_PER_COMPLETION + XP_STREAK_BONUS : XP_PER_COMPLETION;
-          bonusMsg = isMilestone ? ` (+${XP_STREAK_BONUS} streak bonus! 🔥)` : '';
+        const nextHabits = currentHabits.map((item) => (
+          item.id === habitId
+            ? {
+                ...item,
+                lastCompleted: isUndo ? null : today,
+                totalDone: newTotal,
+              }
+            : item
+        ));
+        const nextDerivedPlayer = derivePlayerState(nextPlayer, nextHabits, nextHistory);
+        const becomesCompletedDay = !isUndo && !wasProfileDayComplete && isDayFullyCompleted(nextHabits, nextHistory, today);
+        const removesCompletedDay = isUndo && wasProfileDayComplete;
+        const isMilestone = becomesCompletedDay && STREAK_MILESTONES.includes(nextDerivedPlayer.streak);
+        xpDelta = isUndo
+          ? -(XP_PER_COMPLETION + (removesCompletedDay && STREAK_MILESTONES.includes(profilePlayer.streak) ? XP_STREAK_BONUS : 0))
+          : XP_PER_COMPLETION + (isMilestone ? XP_STREAK_BONUS : 0);
+        bonusMsg = isMilestone ? ` (+${XP_STREAK_BONUS} streak bonus! 🔥)` : '';
+
+        if (xpDelta < 0) {
+          nextPlayer.xp = Math.max(0, nextPlayer.xp + xpDelta);
+          nextPlayer.totalXp = Math.max(0, nextPlayer.totalXp + xpDelta);
+        } else {
           nextPlayer.xp += xpDelta;
           nextPlayer.totalXp += xpDelta;
-          nextHistory[today] = [...(nextHistory[today] || []), habitId];
 
           while (nextPlayer.xp >= XP_PER_LEVEL) {
             nextPlayer.xp -= XP_PER_LEVEL;
@@ -818,6 +967,9 @@ export function useHabits() {
             leveledUp = true;
           }
         }
+
+        nextPlayer.streak = nextDerivedPlayer.streak;
+        nextPlayer.longestStreak = nextDerivedPlayer.longestStreak;
 
         transaction.set(userDocRef, {
           name: profileData.name ?? deriveNameFromAuth(user),
@@ -831,9 +983,7 @@ export function useHabits() {
           habit: {
             ...habitData,
             lastCompleted: isUndo ? null : today,
-            streak: newStreak,
             totalDone: newTotal,
-            longestStreak: newLongest,
           },
           player: nextPlayer,
           completionHistory: nextHistory,

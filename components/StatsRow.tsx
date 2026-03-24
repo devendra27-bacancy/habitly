@@ -2,12 +2,17 @@
 
 import { Habit, todayStr, isScheduledToday } from '../lib/useHabits';
 
-export function StatsRow({ habits }: { habits: Habit[] }) {
+type StatsRowProps = {
+  habits: Habit[];
+  globalLongestStreak?: number;
+};
+
+export function StatsRow({ habits, globalLongestStreak = 0 }: StatsRowProps) {
   const today = todayStr();
   const total = habits.length;
 
   const doneToday = habits.filter((habit) => habit.lastCompleted === today).length;
-  const bestStreak = Math.max(0, ...habits.map((habit) => habit.longestStreak || 0));
+  const bestStreak = globalLongestStreak;
 
   const scheduled = habits.filter((habit) => isScheduledToday(habit.daysOfWeek));
   const schedDone = scheduled.filter((habit) => habit.lastCompleted === today).length;

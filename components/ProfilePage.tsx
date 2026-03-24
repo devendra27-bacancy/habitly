@@ -282,7 +282,7 @@ export function ProfilePage({
           <div className="profile-story-card">
             <div className="profile-story-title">What lives here</div>
             <div className="profile-story-copy">
-              Your profile pulls together your current level, lifetime XP, active streaks, completion momentum, and how many days you&apos;ve shown up. It&apos;s your personal control room.
+              Your profile pulls together your current level, lifetime XP, your global streak, completion momentum, and how many days you&apos;ve shown up. It&apos;s your personal control room.
             </div>
           </div>
 

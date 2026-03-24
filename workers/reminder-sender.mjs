@@ -356,15 +356,14 @@ function getLocalParts(date, timeZone) {
   };
 }
 
-function buildDispatchMessage(habits) {
+function buildDispatchMessage(habits, globalStreak = 0) {
   const [firstHabit] = habits;
-  const highestStreak = Math.max(0, ...habits.map((habit) => Number(habit.streak || 0)));
   const hour = Number((firstHabit?.reminderTime || "00:00").split(":")[0]);
 
   if (habits.length === 1) {
-    if (highestStreak >= 7) {
+    if (globalStreak >= 7) {
       return {
-        title: `Protect your ${highestStreak}-day streak`,
+        title: `Protect your ${globalStreak}-day streak`,
         body: `${firstHabit.name} is ready. A quick check-in keeps the run alive.`,
       };
     }
@@ -470,8 +469,8 @@ function buildHabitNotificationIcon(habit) {
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }
 
-function buildEmailPayload(env, habits) {
-  const copy = buildDispatchMessage(habits);
+function buildEmailPayload(env, habits, globalStreak = 0) {
+  const copy = buildDispatchMessage(habits, globalStreak);
   const origin = getAppOrigin(env);
   const habitList = habits
     .map((habit) => `<li style="margin-bottom:8px;">${habit.name}</li>`)
@@ -507,8 +506,8 @@ function isInvalidFcmError(errorPayload) {
   return errorCode === "UNREGISTERED" || errorCode === "INVALID_ARGUMENT";
 }
 
-async function sendPushNotifications(env, { tokens, dispatchId, localDate, slotTime, habits, dryRun }) {
-  const copy = buildDispatchMessage(habits);
+async function sendPushNotifications(env, { tokens, dispatchId, localDate, slotTime, habits, globalStreak, dryRun }) {
+  const copy = buildDispatchMessage(habits, globalStreak);
   const branding = getNotificationBranding(env);
   const habitIcon = buildHabitNotificationIcon(habits[0]);
   const projectId = getRequiredEnv(env, "FIREBASE_PROJECT_ID");
@@ -592,7 +591,7 @@ async function sendPushNotifications(env, { tokens, dispatchId, localDate, slotT
   };
 }
 
-async function sendReminderEmail(env, { emailAddress, habits, dryRun }) {
+async function sendReminderEmail(env, { emailAddress, habits, globalStreak, dryRun }) {
   const mailgunApiKey = env.MAILGUN_API_KEY;
   const mailgunDomain = env.MAILGUN_DOMAIN;
   const mailgunFromEmail = env.MAILGUN_FROM_EMAIL;
@@ -604,7 +603,7 @@ async function sendReminderEmail(env, { emailAddress, habits, dryRun }) {
     };
   }
 
-  const emailPayload = buildEmailPayload(env, habits);
+  const emailPayload = buildEmailPayload(env, habits, globalStreak);
   if (dryRun) {
     return {
       sent: false,
@@ -733,6 +732,7 @@ async function sendReminderForUser(env, userDocument, { now, dryRun }) {
   const timeZone = settings.timezone || "UTC";
   const pushEnabled = settings.enabled === true;
   const emailEnabled = settings.emailEnabled === true;
+  const globalStreak = Number(userDocument.data?.player?.streak || 0);
 
   if (!pushEnabled && !emailEnabled) {
     return { sent: false, reason: "disabled", userId: userDocument.id };
@@ -787,8 +787,8 @@ async function sendReminderForUser(env, userDocument, { now, dryRun }) {
   }
 
   if (dryRun) {
-    const copy = buildDispatchMessage(dueHabits);
-    const emailPayload = hasEmailChannel ? buildEmailPayload(env, dueHabits) : null;
+    const copy = buildDispatchMessage(dueHabits, globalStreak);
+    const emailPayload = hasEmailChannel ? buildEmailPayload(env, dueHabits, globalStreak) : null;
     return {
       sent: false,
       reason: "dry-run",
@@ -818,12 +818,13 @@ async function sendReminderForUser(env, userDocument, { now, dryRun }) {
   }
 
   const pushResult = hasPushChannel
-    ? await sendPushNotifications(env, {
+      ? await sendPushNotifications(env, {
         tokens: pushTokens,
         dispatchId,
         localDate,
         slotTime,
         habits: dueHabits,
+        globalStreak,
         dryRun,
       })
     : {
@@ -834,9 +835,10 @@ async function sendReminderForUser(env, userDocument, { now, dryRun }) {
       };
 
   const emailResult = hasEmailChannel
-    ? await sendReminderEmail(env, {
+      ? await sendReminderEmail(env, {
         emailAddress,
         habits: dueHabits,
+        globalStreak,
         dryRun,
       })
     : {

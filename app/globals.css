@@ -386,6 +386,22 @@ body.standalone-mode .header {
   content:''; width:5px; height:5px; border-radius:50%;
   background: var(--green-accent); margin-top: -2px;
 }
+.day-pill.has-dot[data-marker="streak"]::after,
+.day-pill.has-dot[data-marker="missed"]::after {
+  width: auto;
+  height: auto;
+  border-radius: 0;
+  background: none;
+  margin-top: -4px;
+  font-size: 12px;
+  line-height: 1;
+}
+.day-pill.has-dot[data-marker="streak"]::after {
+  content: "🔥";
+}
+.day-pill.has-dot[data-marker="missed"]::after {
+  content: "⚠️";
+}
 .day-name { font-size: 10px; font-weight: 800; color: var(--text-muted); }
 .day-num { font-size: 16px; font-weight: 900; color: var(--text-dark); }
 

@@ -65,11 +65,12 @@ const MASCOT_ART: Record<MascotMood, { src: string; accent: string; eyebrow: str
 
 type MascotAreaProps = {
   habits: Habit[];
+  globalStreak: number;
   syncStatus?: SyncStatus;
   errorState?: AppErrorState | null;
 };
 
-export function MascotArea({ habits, syncStatus = "idle", errorState = null }: MascotAreaProps) {
+export function MascotArea({ habits, globalStreak, syncStatus = "idle", errorState = null }: MascotAreaProps) {
   const [tip, setTip] = useState("");
   const [mood, setMood] = useState<MascotMood>("idle");
 
@@ -78,9 +79,8 @@ export function MascotArea({ habits, syncStatus = "idle", errorState = null }: M
     const scheduled = habits.filter((habit) => isScheduledToday(habit.daysOfWeek));
     const done = scheduled.filter((habit) => habit.lastCompleted === today).length;
     const total = scheduled.length;
-    const strongestStreak = Math.max(0, ...habits.map((habit) => habit.streak || 0));
     const hasMissedToday = scheduled.some(
-      (habit) => habit.lastCompleted !== today && habit.streak === 0 && habit.totalDone > 0,
+      (habit) => habit.lastCompleted !== today && habit.totalDone > 0,
     );
 
     if (errorState) {
@@ -113,9 +113,9 @@ export function MascotArea({ habits, syncStatus = "idle", errorState = null }: M
       return;
     }
 
-    if (strongestStreak >= 7) {
+    if (globalStreak >= 7) {
       setMood("streak");
-      setTip(`Your best current streak is ${strongestStreak} days. Keep the chain alive and the bonus XP follows.`);
+      setTip(`Your global streak is ${globalStreak} days. Finish every scheduled habit today to keep the chain alive.`);
       return;
     }
 
@@ -133,7 +133,7 @@ export function MascotArea({ habits, syncStatus = "idle", errorState = null }: M
 
     setMood("morning");
     setTip("Start with the easiest win. Momentum always feels bigger after the first checkmark.");
-  }, [errorState, habits, syncStatus]);
+  }, [errorState, globalStreak, habits, syncStatus]);
 
   const art = MASCOT_ART[mood];
 

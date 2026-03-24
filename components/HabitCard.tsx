@@ -28,17 +28,15 @@ export function HabitCard({
   const today = todayStr();
   const isRestDay = !isScheduledToday(habit.daysOfWeek);
   const isCompleted = !isRestDay && habit.lastCompleted === today;
-  const isStreak = habit.streak >= 7 && !isRestDay;
   const isBusy = isSaving || isDeleting || isEditing || disabled;
 
   return (
     <div
-      className={`habit-card${isCompleted ? " done" : ""}${isStreak ? " streak-fire" : ""}${isRestDay ? " rest-day" : ""}${isBusy ? " pending" : ""}${isHighlighted ? " highlighted" : ""}`}
+      className={`habit-card${isCompleted ? " done" : ""}${isRestDay ? " rest-day" : ""}${isBusy ? " pending" : ""}${isHighlighted ? " highlighted" : ""}`}
       style={{ animationDelay: `${index * 0.07}s` }}
     >
       <div className="habit-icon" style={{ background: `${habit.color}22` }}>
         <span>{habit.emoji}</span>
-        {isStreak ? <span className="fire-badge">Hot</span> : null}
       </div>
       <div className="habit-info">
         <div className="habit-name">{habit.name}</div>
@@ -55,10 +53,8 @@ export function HabitCard({
             <span className="badge rest">Rest day</span>
           ) : isCompleted ? (
             <span className="badge done">Done</span>
-          ) : habit.streak === 0 ? (
+          ) : habit.totalDone === 0 ? (
             <span className="badge new">New</span>
-          ) : habit.streak >= 3 ? (
-            <span className="badge streak">{habit.streak} day streak</span>
           ) : null}
         </div>
       </div>

@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { collection, doc, getDocs, writeBatch } from "firebase/firestore";
+import { collection, deleteDoc, doc, getDocs, limit, query, writeBatch } from "firebase/firestore";
 import { Header } from "../components/Header";
 import { WeekStrip } from "../components/WeekStrip";
 import { MascotArea } from "../components/MascotArea";
@@ -29,6 +29,8 @@ import SplashScreen from "../components/SplashScreen";
 type HabitDraft = Omit<Habit, "id" | "streak" | "longestStreak" | "totalDone" | "lastCompleted" | "createdAt">;
 const ACCOUNT_DELETION_PREFIX = "habitflow_account_deleting_";
 const DASHBOARD_CACHE_PREFIX = "habitly_dashboard_cache_";
+const LEGACY_STORAGE_KEY = "habitflow_v3_next";
+const MIGRATION_DECISION_PREFIX = "habitflow_migration_seen_";
 
 type CachedDashboard = {
   updatedAt: string;
@@ -105,6 +107,31 @@ function addDays(date: Date, amount: number) {
   const next = new Date(date);
   next.setDate(next.getDate() + amount);
   return next;
+}
+
+async function deleteCollectionInBatches(collectionRef: ReturnType<typeof collection>, batchSize = 200) {
+  while (true) {
+    const snapshot = await getDocs(query(collectionRef, limit(batchSize)));
+    if (snapshot.empty) return;
+
+    const batch = writeBatch(db);
+    snapshot.forEach((documentSnapshot) => {
+      batch.delete(documentSnapshot.ref);
+    });
+    await batch.commit();
+
+    if (snapshot.size < batchSize) {
+      return;
+    }
+  }
+}
+
+function clearDeletedUserClientData(uid: string) {
+  if (typeof window === "undefined") return;
+
+  window.localStorage.removeItem(`${DASHBOARD_CACHE_PREFIX}${uid}`);
+  window.localStorage.removeItem(`${MIGRATION_DECISION_PREFIX}${uid}`);
+  window.localStorage.removeItem(LEGACY_STORAGE_KEY);
 }
 
 export default function Home() {
@@ -345,6 +372,15 @@ export default function Home() {
       label: entry.label,
       num: entry.dayNum,
       hasDots: entry.scheduled.length > 0,
+      marker: (entry.isFuture
+        ? (entry.scheduled.length > 0 ? "dot" : undefined)
+        : entry.missed.length > 0
+          ? "missed"
+          : entry.done.length > 0 && entry.done.length === entry.scheduled.length
+            ? "streak"
+            : entry.scheduled.length > 0
+              ? "dot"
+              : undefined) as "dot" | "streak" | "missed" | undefined,
       isToday: entry.isToday,
       isFuture: entry.isFuture,
       dateKey: entry.dateKey,
@@ -423,7 +459,7 @@ export default function Home() {
     const aDone = a.lastCompleted === today ? 1 : 0;
     const bDone = b.lastCompleted === today ? 1 : 0;
     if (aDone !== bDone) return aDone - bDone;
-    return b.streak - a.streak;
+    return b.totalDone - a.totalDone;
   });
 
   const editingHabit = editingId ? activeState.habits.find((habit) => habit.id === editingId) || null : null;
@@ -437,8 +473,8 @@ export default function Home() {
     pendingMutations.deletingIds.length > 0 ||
     pendingMutations.togglingIds.length > 0;
   const totalCompleted = activeState.habits.reduce((sum, habit) => sum + habit.totalDone, 0);
-  const longestStreak = Math.max(0, ...activeState.habits.map((habit) => habit.longestStreak || 0));
-  const currentBestStreak = Math.max(0, ...activeState.habits.map((habit) => habit.streak || 0));
+  const longestStreak = activeState.player.longestStreak || 0;
+  const currentBestStreak = activeState.player.streak || 0;
   const daysActive = Object.keys(activeState.completionHistory).length;
   const completionRate =
     scheduledToday.length === 0
@@ -456,7 +492,7 @@ export default function Home() {
     : "Day view";
 
   const profileStats = [
-    { label: "Current best streak", value: `${currentBestStreak} days`, tone: "sage" as const },
+    { label: "Current streak", value: `${currentBestStreak} days`, tone: "sage" as const },
     { label: "Longest streak", value: `${longestStreak} days`, tone: "sun" as const },
     { label: "Habits completed", value: `${totalCompleted}`, tone: "sky" as const },
     { label: "Days active", value: `${daysActive}`, tone: "rose" as const },
@@ -534,25 +570,11 @@ export default function Home() {
       const habitsRef = collection(db, "users", user.uid, "habits");
       const devicesRef = collection(db, "users", user.uid, "devices");
       const reminderDispatchesRef = collection(db, "users", user.uid, "reminderDispatches");
-      const habitsSnapshot = await getDocs(habitsRef);
-      const devicesSnapshot = await getDocs(devicesRef);
-      const reminderDispatchesSnapshot = await getDocs(reminderDispatchesRef);
-      const batch = writeBatch(db);
-
-      habitsSnapshot.forEach((habitDoc) => {
-        batch.delete(habitDoc.ref);
-      });
-
-      devicesSnapshot.forEach((deviceDoc) => {
-        batch.delete(deviceDoc.ref);
-      });
-
-      reminderDispatchesSnapshot.forEach((dispatchDoc) => {
-        batch.delete(dispatchDoc.ref);
-      });
-
-      batch.delete(doc(db, "users", user.uid));
-      await batch.commit();
+      await deleteCollectionInBatches(habitsRef);
+      await deleteCollectionInBatches(devicesRef);
+      await deleteCollectionInBatches(reminderDispatchesRef);
+      await deleteDoc(doc(db, "users", user.uid));
+      clearDeletedUserClientData(user.uid);
       await deleteCurrentUserAccount();
       showToast("✓", "Your account was deleted.", "success");
     } catch (error) {
@@ -594,7 +616,7 @@ export default function Home() {
           onSelectDate={(dateKey) => setSelectedDateKey(dateKey)}
         />
         {selectedEntry?.isToday ? (
-          <MascotArea habits={activeState.habits} syncStatus={syncStatus} errorState={errorState} />
+          <MascotArea habits={activeState.habits} globalStreak={activeState.player.streak || 0} syncStatus={syncStatus} errorState={errorState} />
         ) : null}
         {isOffline ? <OfflineBanner hasCachedDashboard={hasCachedDashboard} /> : null}
 
