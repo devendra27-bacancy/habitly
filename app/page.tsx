@@ -11,6 +11,7 @@ import { BottomBar } from "../components/BottomBar";
 import { AddHabitModal } from "../components/AddHabitModal";
 import { NameModal } from "../components/NameModal";
 import { ProfilePage } from "../components/ProfilePage";
+import { StatsPage } from "../components/StatsPage";
 import type { ProfileAnalyticsData } from "../components/ProfileAnalytics";
 import { CompleteOverlay } from "../components/CompleteOverlay";
 import { LevelUpOverlay } from "../components/LevelUpOverlay";
@@ -187,7 +188,7 @@ export default function Home() {
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isNameOpen, setIsNameOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
-  const [profileSection, setProfileSection] = useState<"overview" | "analytics">("overview");
+  const [isStatsOpen, setIsStatsOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [displayWeekStartKey, setDisplayWeekStartKey] = useState(localDateStr(getStartOfWeek(new Date())));
   const [selectedDateKey, setSelectedDateKey] = useState(todayStr());
@@ -216,7 +217,7 @@ export default function Home() {
     setIsAddOpen(false);
     setIsNameOpen(false);
     setIsProfileOpen(false);
-    setProfileSection("overview");
+    setIsStatsOpen(false);
     setEditingId(null);
     setDisplayWeekStartKey(localDateStr(getStartOfWeek(new Date())));
     setSelectedDateKey(todayStr());
@@ -328,6 +329,17 @@ export default function Home() {
     if (!focusedReminderSlot || !selectedDateKey || selectedDateKey !== todayKey) return;
     habitsListRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }, [focusedReminderSlot, selectedDateKey, todayKey]);
+
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+
+    const shouldLockScroll = isAddOpen || isNameOpen || isProfileOpen || isStatsOpen;
+    document.body.classList.toggle("body-lock-scroll", shouldLockScroll);
+
+    return () => {
+      document.body.classList.remove("body-lock-scroll");
+    };
+  }, [isAddOpen, isNameOpen, isProfileOpen, isStatsOpen]);
 
   const updateDisplayedWeek = (nextWeekStart: Date) => {
     const normalizedNextWeekStart = getStartOfWeek(nextWeekStart);
@@ -903,11 +915,11 @@ export default function Home() {
           setIsAddOpen(true);
         }}
         onStats={() => {
-          setProfileSection("analytics");
-          setIsProfileOpen(true);
+          setIsProfileOpen(false);
+          setIsStatsOpen(true);
         }}
         onProfile={() => {
-          setProfileSection("overview");
+          setIsStatsOpen(false);
           setIsProfileOpen(true);
         }}
         disableAdd={isBusy || isReadOnlyMode}
@@ -964,9 +976,6 @@ export default function Home() {
         level={activeState.player.level}
         levelXp={activeState.player.xp}
         totalXp={activeState.player.totalXp}
-        stats={profileStats}
-        analytics={analytics}
-        initialSection={profileSection}
         isDeletingAccount={isDeletingAccount}
         readOnly={isReadOnlyMode}
         notificationsSupported={notificationsSupported}
@@ -988,6 +997,15 @@ export default function Home() {
         }}
         notificationBusy={notificationBusy}
         notificationError={notificationError}
+      />
+      <StatsPage
+        isOpen={isStatsOpen}
+        onClose={() => setIsStatsOpen(false)}
+        level={activeState.player.level}
+        levelXp={activeState.player.xp}
+        totalXp={activeState.player.totalXp}
+        stats={profileStats}
+        analytics={analytics}
       />
       <LocalMigrationPrompt
         open={migrationOpen}

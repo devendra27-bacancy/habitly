@@ -21,6 +21,12 @@
 
 * { margin:0; padding:0; box-sizing:border-box; }
 
+html,
+body {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
 body {
   font-family: var(--font-nunito), sans-serif;
   background: var(--sage);
@@ -28,6 +34,11 @@ body {
   overflow-x: hidden;
   position: relative;
   -webkit-tap-highlight-color: transparent;
+}
+
+body.body-lock-scroll {
+  overflow: hidden;
+  touch-action: none;
 }
 
 body.standalone-mode {
@@ -118,7 +129,7 @@ button:disabled {
 .app { 
   position:relative; 
   z-index:1; 
-  width: 95%;
+  width: min(100%, 500px);
   max-width: 500px; 
   margin:0 auto; 
   padding:0 0 100px; 
@@ -696,9 +707,10 @@ body.standalone-mode .header {
 
 /* ===== BOTTOM BAR ===== */
 .bottom-bar {
-  position: fixed; bottom: 0; left:50%; transform: translateX(-50%);
-  width: 100%; 
+  position: fixed; bottom: 0; left: 0; right: 0;
+  width: min(100%, 500px);
   max-width: 500px;
+  margin: 0 auto;
   padding: 16px 20px;
   display: flex; justify-content:space-between; align-items:center;
   gap: 12px;
@@ -2042,15 +2054,16 @@ body.standalone-mode .bottom-bar {
 #toast-container {
   position: fixed;
   top: 16px;
-  transform: translateX(-50%);
-  left: 50%;
+  left: 0;
+  right: 0;
+  margin: 0 auto;
   z-index: 1000;
   display: flex;
   flex-direction: column;
   gap: 10px;
   align-items: center;
   pointer-events: none;
-  width: 90%; max-width: 400px;
+  width: min(90%, 400px);
 }
 .toast {
   display: flex;

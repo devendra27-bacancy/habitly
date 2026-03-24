@@ -1,8 +1,6 @@
 "use client";
-import { useEffect, useRef } from "react";
 import { logout } from "../lib/auth";
 import { BellIcon, CloseIcon, LogoutIcon, MailIcon, PencilSquareIcon, TrashIcon } from "./Icons";
-import { ProfileAnalytics, type ProfileAnalyticsData } from "./ProfileAnalytics";
 
 type ProfileStat = {
   label: string;
@@ -25,9 +23,6 @@ type ProfilePageProps = {
   level: number;
   levelXp: number;
   totalXp: number;
-  stats: ProfileStat[];
-  analytics: ProfileAnalyticsData;
-  initialSection?: "overview" | "analytics";
   isDeletingAccount?: boolean;
   readOnly?: boolean;
   notificationsSupported: boolean;
@@ -71,9 +66,6 @@ export function ProfilePage({
   level,
   levelXp,
   totalXp,
-  stats,
-  analytics,
-  initialSection = "overview",
   isDeletingAccount = false,
   readOnly = false,
   notificationsSupported,
@@ -90,20 +82,6 @@ export function ProfilePage({
   notificationBusy = false,
   notificationError = null,
 }: ProfilePageProps) {
-  const analyticsRef = useRef<HTMLDivElement | null>(null);
-  const topRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const target = initialSection === "analytics" ? analyticsRef.current : topRef.current;
-    if (!target) return;
-
-    window.requestAnimationFrame(() => {
-      target.scrollIntoView({ behavior: "smooth", block: "start" });
-    });
-  }, [initialSection, isOpen]);
-
   if (!isOpen) return null;
 
   const permissionCopy =
@@ -128,7 +106,7 @@ export function ProfilePage({
             </button>
           </div>
 
-          <div className="profile-hero" ref={topRef}>
+          <div className="profile-hero">
             <div className="profile-hero-top">
               {photoURL ? (
                 <div className="profile-avatar-image-wrap">
@@ -286,23 +264,10 @@ export function ProfilePage({
             {notificationError ? <div className="profile-notification-error">{notificationError}</div> : null}
           </div>
 
-          <div className="profile-grid">
-            {stats.map((stat) => (
-              <div key={stat.label} className={`profile-stat-card ${stat.tone || "sage"}`}>
-                <div className="profile-stat-value">{stat.value}</div>
-                <div className="profile-stat-label">{stat.label}</div>
-              </div>
-            ))}
-          </div>
-
-          <div ref={analyticsRef}>
-            <ProfileAnalytics data={analytics} />
-          </div>
-
           <div className="profile-story-card">
             <div className="profile-story-title">What lives here</div>
             <div className="profile-story-copy">
-              Your profile pulls together your current level, lifetime XP, your global streak, completion momentum, and how many days you&apos;ve shown up. It&apos;s your personal control room.
+              Your profile is where you manage reminders, update your name, and control your account. Stats now have their own dedicated screen from the chart button in the bottom bar.
             </div>
           </div>
 
