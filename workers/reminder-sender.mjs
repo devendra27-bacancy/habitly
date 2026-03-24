@@ -376,8 +376,8 @@ function buildDispatchMessage(habits, globalStreak = 0) {
     }
 
     return {
-      title: `Time for ${firstHabit.name}`,
-      body: "A quick check-in keeps your momentum moving.",
+      title: firstHabit.name,
+      body: "A small check-in now keeps your day on track.",
     };
   }
 
