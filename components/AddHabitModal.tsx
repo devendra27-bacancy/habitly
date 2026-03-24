@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Habit, ALL_DAYS, DAY_LABELS } from "../lib/useHabits";
+import { PencilSquareIcon, PlusSquareIcon, TrashIcon } from "./Icons";
 
 const EMOJIS = [
   "🚶",
@@ -198,7 +199,10 @@ export function AddHabitModal({
       }}
     >
       <div className="modal">
-        <div className="modal-title">{editData ? "Edit Habit ✍️" : "New Habit ✨"}</div>
+        <div className="modal-title">
+          {editData ? <PencilSquareIcon className="modal-title-icon" /> : <PlusSquareIcon className="modal-title-icon" />}
+          <span>{editData ? "Edit Habit" : "New Habit"}</span>
+        </div>
 
         <form onSubmit={handleSubmit}>
           <div className="form-group">
@@ -214,60 +218,59 @@ export function AddHabitModal({
             {error ? <div className="form-error">{error}</div> : null}
           </div>
 
-          <div className="form-row">
-            <div className="form-group">
-              <label className="form-label">Reminder Time</label>
-              <div className="time-picker">
-                <select
-                  className="form-input form-time-select"
-                  value={timeHour}
-                  onChange={(event) => setTimeHour(event.target.value)}
-                  disabled={isSaving || isDeleting}
-                >
-                  {HOUR_OPTIONS.map((hour) => (
-                    <option key={hour} value={hour}>
-                      {hour}
-                    </option>
-                  ))}
-                </select>
-                <span className="time-picker-separator">:</span>
-                <select
-                  className="form-input form-time-select"
-                  value={timeMinute}
-                  onChange={(event) => setTimeMinute(event.target.value)}
-                  disabled={isSaving || isDeleting}
-                >
-                  {MINUTE_OPTIONS.map((minute) => (
-                    <option key={minute} value={minute}>
-                      {minute}
-                    </option>
-                  ))}
-                </select>
-                <select
-                  className="form-input form-time-period"
-                  value={timePeriod}
-                  onChange={(event) => setTimePeriod(event.target.value as PeriodOption)}
-                  disabled={isSaving || isDeleting}
-                >
-                  {PERIOD_OPTIONS.map((period) => (
-                    <option key={period} value={period}>
-                      {period}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-            <div className="form-group">
-              <label className="form-label">End Date</label>
-              <input
-                className="form-input"
-                type="date"
-                value={endDate}
-                onChange={(event) => setEndDate(event.target.value)}
-                min={editData?.createdAt || undefined}
+          <div className="form-group">
+            <label className="form-label">Reminder Time</label>
+            <div className="time-picker">
+              <select
+                className="form-input form-time-select"
+                value={timeHour}
+                onChange={(event) => setTimeHour(event.target.value)}
                 disabled={isSaving || isDeleting}
-              />
+              >
+                {HOUR_OPTIONS.map((hour) => (
+                  <option key={hour} value={hour}>
+                    {hour}
+                  </option>
+                ))}
+              </select>
+              <span className="time-picker-separator">:</span>
+              <select
+                className="form-input form-time-select"
+                value={timeMinute}
+                onChange={(event) => setTimeMinute(event.target.value)}
+                disabled={isSaving || isDeleting}
+              >
+                {MINUTE_OPTIONS.map((minute) => (
+                  <option key={minute} value={minute}>
+                    {minute}
+                  </option>
+                ))}
+              </select>
+              <select
+                className="form-input form-time-period"
+                value={timePeriod}
+                onChange={(event) => setTimePeriod(event.target.value as PeriodOption)}
+                disabled={isSaving || isDeleting}
+              >
+                {PERIOD_OPTIONS.map((period) => (
+                  <option key={period} value={period}>
+                    {period}
+                  </option>
+                ))}
+              </select>
             </div>
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">End Date</label>
+            <input
+              className="form-input"
+              type="date"
+              value={endDate}
+              onChange={(event) => setEndDate(event.target.value)}
+              min={editData?.createdAt || undefined}
+              disabled={isSaving || isDeleting}
+            />
           </div>
 
           <div className="form-group">
@@ -333,7 +336,7 @@ export function AddHabitModal({
                 onClick={() => onDelete(editData.id)}
                 disabled={isSaving || isDeleting}
               >
-                {isDeleting ? "Deleting..." : "🗑 Delete"}
+                {isDeleting ? "Deleting..." : <><TrashIcon className="button-icon button-icon-inline" />Delete</>}
               </button>
               <button
                 type="button"

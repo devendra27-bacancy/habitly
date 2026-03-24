@@ -11,12 +11,14 @@ import { BottomBar } from "../components/BottomBar";
 import { AddHabitModal } from "../components/AddHabitModal";
 import { NameModal } from "../components/NameModal";
 import { ProfilePage } from "../components/ProfilePage";
+import type { ProfileAnalyticsData } from "../components/ProfileAnalytics";
 import { CompleteOverlay } from "../components/CompleteOverlay";
 import { LevelUpOverlay } from "../components/LevelUpOverlay";
 import { ConfettiCanvas } from "../components/ConfettiCanvas";
 import { LocalMigrationPrompt } from "../components/LocalMigrationPrompt";
 import { ToastContainer } from "../components/ToastContainer";
-import { useHabits, todayStr, isScheduledToday, Habit, formatTime, AppState } from "../lib/useHabits";
+import { ClockIcon } from "../components/Icons";
+import { useHabits, todayStr, isScheduledToday, Habit, formatTime, AppState, ALL_DAYS, DAY_LABELS } from "../lib/useHabits";
 import { localDateStr } from "../lib/dates";
 import { deleteCurrentUserAccount } from "../lib/auth";
 import { db } from "../lib/firebase";
@@ -89,6 +91,14 @@ function habitWasActiveOnDate(habit: Habit, dateKey: string) {
   const hasStarted = !habit.createdAt || habit.createdAt <= dateKey;
   const hasNotEnded = !habit.endDate || habit.endDate >= dateKey;
   return hasStarted && hasNotEnded;
+}
+
+function getHabitsScheduledForDate(habits: Habit[], dateKey: string) {
+  const dayOfWeek = parseDateKey(dateKey).getDay();
+  return habits.filter((habit) => {
+    const days = Array.isArray(habit.daysOfWeek) && habit.daysOfWeek.length > 0 ? habit.daysOfWeek : ALL_DAYS;
+    return days.includes(dayOfWeek) && habitWasActiveOnDate(habit, dateKey);
+  });
 }
 
 function getStartOfWeek(date: Date) {
@@ -488,6 +498,141 @@ export default function Home() {
       ? selectedScheduledHabits.length
       : selectedDoneHabits.length + selectedMissedHabits.length
     : 0;
+  const analytics = useMemo<ProfileAnalyticsData>(() => {
+    const buildDateKeys = (count: number) =>
+      Array.from({ length: count }, (_, index) => localDateStr(addDays(todayDate, -(count - 1 - index))));
+
+    const summarizeDate = (dateKey: string) => {
+      const scheduled = getHabitsScheduledForDate(activeState.habits, dateKey);
+      const completedIds = new Set(activeState.completionHistory[dateKey] || []);
+      const done = scheduled.filter((habit) => completedIds.has(habit.id)).length;
+      const total = scheduled.length;
+      return {
+        dateKey,
+        done,
+        total,
+        rate: total > 0 ? done / total : 0,
+      };
+    };
+
+    const trend = buildDateKeys(14).map((dateKey) => {
+      const summary = summarizeDate(dateKey);
+      const date = parseDateKey(dateKey);
+      return {
+        ...summary,
+        label: date.toLocaleDateString("en-US", { day: "numeric" }),
+      };
+    });
+
+    const lastThirty = buildDateKeys(30).map(summarizeDate);
+    const scheduledLastThirty = lastThirty.filter((day) => day.total > 0);
+    const doneLastThirty = scheduledLastThirty.reduce((sum, day) => sum + day.done, 0);
+    const totalLastThirty = scheduledLastThirty.reduce((sum, day) => sum + day.total, 0);
+    const perfectDays = scheduledLastThirty.filter((day) => day.done === day.total).length;
+    const activeDays = scheduledLastThirty.filter((day) => day.done > 0).length;
+
+    const weekdayWindow = buildDateKeys(56).map(summarizeDate);
+    const weekday = [1, 2, 3, 4, 5, 6, 0].map((dayOfWeek) => {
+      const entries = weekdayWindow.filter((entry) => parseDateKey(entry.dateKey).getDay() === dayOfWeek && entry.total > 0);
+      const done = entries.reduce((sum, day) => sum + day.done, 0);
+      const total = entries.reduce((sum, day) => sum + day.total, 0);
+      return {
+        label: DAY_LABELS[dayOfWeek],
+        done,
+        total,
+        rate: total > 0 ? done / total : 0,
+      };
+    });
+
+    const heatmap = buildDateKeys(70).map((dateKey) => {
+      const summary = summarizeDate(dateKey);
+      const level = summary.total === 0 ? 0 : summary.rate >= 1 ? 3 : summary.rate >= 0.66 ? 2 : 1;
+      return {
+        dateKey,
+        label: parseDateKey(dateKey).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+        level: level as 0 | 1 | 2 | 3,
+        done: summary.done,
+        total: summary.total,
+        isToday: dateKey === todayKey,
+      };
+    });
+
+    const habitSnapshots = activeState.habits.map((habit) => {
+      const recentScheduled = lastThirty.filter((day) =>
+        getHabitsScheduledForDate([habit], day.dateKey).length > 0,
+      );
+      const recentDone = recentScheduled.filter((day) =>
+        (activeState.completionHistory[day.dateKey] || []).includes(habit.id),
+      ).length;
+
+      return {
+        habit,
+        scheduled: recentScheduled.length,
+        done: recentDone,
+        rate: recentScheduled.length > 0 ? recentDone / recentScheduled.length : 0,
+      };
+    });
+
+    const topHabit = [...activeState.habits].sort((a, b) => b.totalDone - a.totalDone)[0] ?? null;
+    const mostReliable = [...habitSnapshots]
+      .filter((entry) => entry.scheduled > 0)
+      .sort((a, b) => b.rate - a.rate || b.done - a.done)[0] ?? null;
+    const needsAttention = [...habitSnapshots]
+      .filter((entry) => entry.scheduled >= 2)
+      .sort((a, b) => a.rate - b.rate || b.scheduled - a.scheduled)[0] ?? null;
+    const strongestWeekday = [...weekday]
+      .filter((entry) => entry.total > 0)
+      .sort((a, b) => b.rate - a.rate || b.done - a.done)[0] ?? null;
+
+    return {
+      overview: [
+        {
+          label: "30-day completion",
+          value: totalLastThirty > 0 ? `${Math.round((doneLastThirty / totalLastThirty) * 100)}%` : "—",
+          helper: totalLastThirty > 0 ? `${doneLastThirty} of ${totalLastThirty} scheduled check-ins` : "No scheduled check-ins yet",
+          tone: "sage",
+        },
+        {
+          label: "Perfect days",
+          value: String(perfectDays),
+          helper: "Days where every scheduled habit got done",
+          tone: "sun",
+        },
+        {
+          label: "Active days",
+          value: String(activeDays),
+          helper: "Days in the last month with at least one completion",
+          tone: "sky",
+        },
+        {
+          label: "Longest run",
+          value: `${activeState.player.longestStreak} days`,
+          helper: "Best global streak so far",
+          tone: "rose",
+        },
+      ],
+      trend,
+      weekday,
+      heatmap,
+      insights: [
+        {
+          label: "Top habit",
+          value: topHabit ? `${topHabit.emoji} ${topHabit.name}` : "No data yet",
+          helper: topHabit ? `${topHabit.totalDone} total completions so far` : "Add a few habits to unlock this view",
+        },
+        {
+          label: "Most reliable",
+          value: mostReliable ? `${mostReliable.habit.emoji} ${mostReliable.habit.name}` : "No data yet",
+          helper: mostReliable ? `${Math.round(mostReliable.rate * 100)}% hit rate over the last 30 days` : "We need a bit more history first",
+        },
+        {
+          label: "Needs attention",
+          value: needsAttention ? `${needsAttention.habit.emoji} ${needsAttention.habit.name}` : "Everything looks steady",
+          helper: needsAttention ? `${Math.round(needsAttention.rate * 100)}% completion across recent scheduled days` : strongestWeekday ? `${strongestWeekday.label} is your strongest day right now` : "No weak spots yet",
+        },
+      ],
+    };
+  }, [activeState.completionHistory, activeState.habits, activeState.player.longestStreak, todayDate, todayKey]);
   const selectedSectionTitle = selectedEntry
     ? selectedEntry.isToday
       ? "Today's Habits"
@@ -666,7 +811,14 @@ export default function Home() {
                     </div>
                   </div>
                   <div className="habit-right">
-                    <div className="habit-duration">{habit.reminderTime ? `⏱ ${formatTime(habit.reminderTime)}` : "—"}</div>
+                    <div className="habit-duration">
+                      {habit.reminderTime ? (
+                        <>
+                          <ClockIcon className="inline-meta-icon" />
+                          {formatTime(habit.reminderTime)}
+                        </>
+                      ) : "—"}
+                    </div>
                     <button
                       className="edit-btn inline-edit-btn"
                       onClick={() => handleEditHabit(habit.id)}
@@ -809,6 +961,7 @@ export default function Home() {
         levelXp={activeState.player.xp}
         totalXp={activeState.player.totalXp}
         stats={profileStats}
+        analytics={analytics}
         isDeletingAccount={isDeletingAccount}
         readOnly={isReadOnlyMode}
         notificationsSupported={notificationsSupported}

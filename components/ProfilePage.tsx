@@ -1,6 +1,7 @@
 "use client";
 import { logout } from "../lib/auth";
-import { CloseIcon } from "./Icons";
+import { BellIcon, CloseIcon, LogoutIcon, MailIcon, PencilSquareIcon, TrashIcon } from "./Icons";
+import { ProfileAnalytics, type ProfileAnalyticsData } from "./ProfileAnalytics";
 
 type ProfileStat = {
   label: string;
@@ -24,6 +25,7 @@ type ProfilePageProps = {
   levelXp: number;
   totalXp: number;
   stats: ProfileStat[];
+  analytics: ProfileAnalyticsData;
   isDeletingAccount?: boolean;
   readOnly?: boolean;
   notificationsSupported: boolean;
@@ -68,6 +70,7 @@ export function ProfilePage({
   levelXp,
   totalXp,
   stats,
+  analytics,
   isDeletingAccount = false,
   readOnly = false,
   notificationsSupported,
@@ -126,6 +129,7 @@ export function ProfilePage({
                 <p>{email || "Signed in"}</p>
               </div>
               <button className="profile-edit" onClick={onEditName} disabled={readOnly}>
+                <PencilSquareIcon className="button-icon button-icon-inline" />
                 Edit name
               </button>
             </div>
@@ -151,7 +155,7 @@ export function ProfilePage({
             <div className="profile-notification-stack">
               <div className="profile-channel-row">
                 <div className="profile-channel-copy">
-                  <div className="profile-channel-title">Push reminders</div>
+                  <div className="profile-channel-title"><BellIcon className="inline-feature-icon" />Push reminders</div>
                   <div className="profile-channel-subcopy">
                     Timely nudges on this browser when a habit slot comes up.
                   </div>
@@ -175,7 +179,7 @@ export function ProfilePage({
               </div>
               <div className="profile-channel-row">
                 <div className="profile-channel-copy">
-                  <div className="profile-channel-title">Email reminders</div>
+                  <div className="profile-channel-title"><MailIcon className="inline-feature-icon" />Email reminders</div>
                   <div className="profile-channel-subcopy">
                     {emailNotificationsAvailable
                       ? emailNotificationAddress
@@ -274,6 +278,8 @@ export function ProfilePage({
             ))}
           </div>
 
+          <ProfileAnalytics data={analytics} />
+
           <div className="profile-story-card">
             <div className="profile-story-title">What lives here</div>
             <div className="profile-story-copy">
@@ -283,9 +289,11 @@ export function ProfilePage({
 
           <div className="profile-actions">
             <button className="profile-logout" onClick={() => void logout()}>
+              <LogoutIcon className="button-icon button-icon-inline" />
               Log out
             </button>
             <button className="profile-delete" onClick={onDeleteAccount} disabled={readOnly || isDeletingAccount}>
+              <TrashIcon className="button-icon button-icon-inline" />
               {isDeletingAccount ? "Deleting account..." : "Delete account"}
             </button>
           </div>

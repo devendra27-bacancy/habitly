@@ -1,4 +1,4 @@
-import { ChartIcon, UserIcon } from "./Icons";
+import { ChartIcon, PlusSquareIcon, UserIcon } from "./Icons";
 
 type BottomBarProps = {
   onAdd: () => void;
@@ -12,7 +12,7 @@ export function BottomBar({ onAdd, onStats, onProfile, disableAdd = false, disab
   return (
     <div className="bottom-bar">
       <button className="add-btn" onClick={onAdd} disabled={disableAdd}>
-        <span className="plus">+</span> New habit
+        <PlusSquareIcon className="button-icon" /> New habit
       </button>
       <div className="bottom-actions">
         <button className="icon-btn" onClick={onStats} title="History and stats" disabled={disableNav}>

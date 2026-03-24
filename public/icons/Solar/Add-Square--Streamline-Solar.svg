@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" id="Add-Square--Streamline-Solar" height="24" width="24">
+  <desc>
+    Add Square Streamline Icon: https://streamlinehq.com
+  </desc>
+  <g id="Bold Duotone/Essentional UI/Add Square">
+    <path id="Vector" fill="#737374" d="M12 22c-4.71405 0 -7.07107 0 -8.53553 -1.4645C2 19.0711 2 16.714 2 12c0 -4.71405 0 -7.07107 1.46447 -8.53553C4.92893 2 7.28595 2 12 2c4.714 0 7.0711 0 8.5355 1.46447C22 4.92893 22 7.28595 22 12c0 4.714 0 7.0711 -1.4645 8.5355C19.0711 22 16.714 22 12 22Z" stroke-width="1"></path>
+    <path id="Vector_2" fill="#000000" d="M12 8.25c0.4142 0 0.75 0.33579 0.75 0.75v2.25H15c0.4142 0 0.75 0.3358 0.75 0.75s-0.3358 0.75 -0.75 0.75h-2.25V15c0 0.4142 -0.3358 0.75 -0.75 0.75s-0.75 -0.3358 -0.75 -0.75v-2.25H9c-0.41421 0 -0.75 -0.3358 -0.75 -0.75s0.33579 -0.75 0.75 -0.75h2.25V9c0 -0.41421 0.3358 -0.75 0.75 -0.75Z" stroke-width="1"></path>
+  </g>
+</svg>

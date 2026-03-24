@@ -1,6 +1,7 @@
 "use client";
 
 import { Habit, formatTime, isScheduledToday, todayStr } from "../lib/useHabits";
+import { ClockIcon, PencilSquareIcon } from "./Icons";
 
 type HabitCardProps = {
   habit: Habit;
@@ -59,10 +60,17 @@ export function HabitCard({
         </div>
       </div>
       <div className="habit-right">
-        <div className="habit-duration">{habit.reminderTime ? `At ${formatTime(habit.reminderTime)}` : "-"}</div>
+        <div className="habit-duration">
+          {habit.reminderTime ? (
+            <>
+              <ClockIcon className="inline-meta-icon" />
+              {formatTime(habit.reminderTime)}
+            </>
+          ) : "-"}
+        </div>
         <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
           <button className="edit-btn" onClick={() => onEdit(habit.id)} aria-label={`Edit ${habit.name}`} disabled={isBusy}>
-            Edit
+            <PencilSquareIcon className="inline-action-icon" />
           </button>
           <button
             className={`check-btn${isCompleted ? " checked" : ""}`}
