@@ -187,6 +187,7 @@ export default function Home() {
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isNameOpen, setIsNameOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [profileSection, setProfileSection] = useState<"overview" | "analytics">("overview");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [displayWeekStartKey, setDisplayWeekStartKey] = useState(localDateStr(getStartOfWeek(new Date())));
   const [selectedDateKey, setSelectedDateKey] = useState(todayStr());
@@ -215,6 +216,7 @@ export default function Home() {
     setIsAddOpen(false);
     setIsNameOpen(false);
     setIsProfileOpen(false);
+    setProfileSection("overview");
     setEditingId(null);
     setDisplayWeekStartKey(localDateStr(getStartOfWeek(new Date())));
     setSelectedDateKey(todayStr());
@@ -901,11 +903,13 @@ export default function Home() {
           setIsAddOpen(true);
         }}
         onStats={() => {
-          const currentWeekStart = getStartOfWeek(new Date());
-          setDisplayWeekStartKey(localDateStr(currentWeekStart));
-          setSelectedDateKey(todayKey);
+          setProfileSection("analytics");
+          setIsProfileOpen(true);
         }}
-        onProfile={() => setIsProfileOpen(true)}
+        onProfile={() => {
+          setProfileSection("overview");
+          setIsProfileOpen(true);
+        }}
         disableAdd={isBusy || isReadOnlyMode}
       />
 
@@ -962,6 +966,7 @@ export default function Home() {
         totalXp={activeState.player.totalXp}
         stats={profileStats}
         analytics={analytics}
+        initialSection={profileSection}
         isDeletingAccount={isDeletingAccount}
         readOnly={isReadOnlyMode}
         notificationsSupported={notificationsSupported}

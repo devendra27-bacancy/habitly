@@ -701,6 +701,7 @@ body.standalone-mode .header {
   max-width: 500px;
   padding: 16px 20px;
   display: flex; justify-content:space-between; align-items:center;
+  gap: 12px;
   background: linear-gradient(to top, var(--sage) 60%, transparent);
   z-index: 100;
 }
@@ -727,10 +728,13 @@ body.standalone-mode .bottom-bar {
   transition: transform 0.2s, box-shadow 0.2s;
   box-shadow: 0 4px 16px rgba(0,0,0,0.25);
   letter-spacing: 0.3px;
+  flex: 1 1 auto;
+  min-width: 0;
+  justify-content: center;
 }
 .add-btn:hover { transform: scale(1.05); box-shadow: 0 8px 24px rgba(0,0,0,0.3); }
 
-.bottom-actions { display:flex; gap:12px; }
+.bottom-actions { display:flex; gap:12px; flex: 0 0 auto; }
 .icon-btn {
   width: 48px; height: 48px;
   border-radius: 50%;
@@ -773,9 +777,10 @@ body.standalone-mode .bottom-bar {
 
 .modal {
   background: var(--cream);
-  width: 100%; max-width: 500px;
+  width: calc(100% - 20px);
+  max-width: 500px;
   border-radius: 28px 28px 0 0;
-  padding: 28px 24px 40px;
+  padding: 22px 18px 32px;
   transform: translateY(100%);
   transition: transform 0.4s cubic-bezier(0.34,1.56,0.64,1);
   max-height: 90vh;

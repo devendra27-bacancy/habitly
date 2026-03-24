@@ -4,8 +4,8 @@ type IconProps = {
   className?: string;
 };
 
-const ICON_PRIMARY = "#1c1c1c";
-const ICON_SECONDARY = "#2b934d";
+const ICON_PRIMARY = "#2f4c35";
+const ICON_SECONDARY = "#9fd39b";
 
 function BaseIcon({ className, children }: PropsWithChildren<IconProps>) {
   return (

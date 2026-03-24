@@ -1,4 +1,5 @@
 "use client";
+import { useEffect, useRef } from "react";
 import { logout } from "../lib/auth";
 import { BellIcon, CloseIcon, LogoutIcon, MailIcon, PencilSquareIcon, TrashIcon } from "./Icons";
 import { ProfileAnalytics, type ProfileAnalyticsData } from "./ProfileAnalytics";
@@ -26,6 +27,7 @@ type ProfilePageProps = {
   totalXp: number;
   stats: ProfileStat[];
   analytics: ProfileAnalyticsData;
+  initialSection?: "overview" | "analytics";
   isDeletingAccount?: boolean;
   readOnly?: boolean;
   notificationsSupported: boolean;
@@ -71,6 +73,7 @@ export function ProfilePage({
   totalXp,
   stats,
   analytics,
+  initialSection = "overview",
   isDeletingAccount = false,
   readOnly = false,
   notificationsSupported,
@@ -87,6 +90,20 @@ export function ProfilePage({
   notificationBusy = false,
   notificationError = null,
 }: ProfilePageProps) {
+  const analyticsRef = useRef<HTMLDivElement | null>(null);
+  const topRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const target = initialSection === "analytics" ? analyticsRef.current : topRef.current;
+    if (!target) return;
+
+    window.requestAnimationFrame(() => {
+      target.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }, [initialSection, isOpen]);
+
   if (!isOpen) return null;
 
   const permissionCopy =
@@ -111,7 +128,7 @@ export function ProfilePage({
             </button>
           </div>
 
-          <div className="profile-hero">
+          <div className="profile-hero" ref={topRef}>
             <div className="profile-hero-top">
               {photoURL ? (
                 <div className="profile-avatar-image-wrap">
@@ -278,7 +295,9 @@ export function ProfilePage({
             ))}
           </div>
 
-          <ProfileAnalytics data={analytics} />
+          <div ref={analyticsRef}>
+            <ProfileAnalytics data={analytics} />
+          </div>
 
           <div className="profile-story-card">
             <div className="profile-story-title">What lives here</div>
