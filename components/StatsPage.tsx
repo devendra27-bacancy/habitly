@@ -2,6 +2,8 @@
 
 import { CloseIcon } from "./Icons";
 import { ProfileAnalytics, type ProfileAnalyticsData } from "./ProfileAnalytics";
+import { AchievementsSection } from "./AchievementsSection";
+import type { AchievementSummary } from "../lib/achievements";
 
 type ProfileStat = {
   label: string;
@@ -17,9 +19,10 @@ type StatsPageProps = {
   totalXp: number;
   stats: ProfileStat[];
   analytics: ProfileAnalyticsData;
+  achievements: AchievementSummary;
 };
 
-export function StatsPage({ isOpen, onClose, level, levelXp, totalXp, stats, analytics }: StatsPageProps) {
+export function StatsPage({ isOpen, onClose, level, levelXp, totalXp, stats, analytics, achievements }: StatsPageProps) {
   if (!isOpen) return null;
 
   return (
@@ -63,6 +66,7 @@ export function StatsPage({ isOpen, onClose, level, levelXp, totalXp, stats, ana
             ))}
           </div>
 
+          <AchievementsSection summary={achievements} />
           <ProfileAnalytics data={analytics} />
         </div>
       </div>

@@ -32,10 +32,11 @@ export default function SplashScreen({ onComplete }: { onComplete: () => void })
     <div id="splash" className={hide ? "hide" : ""}>
       <div className="splash-mascot" aria-hidden="true">
         <Image
-          src="/mascot/mascot_idle_default.png"
+          className="splash-mascot-image"
+          src="/mascot/mascot_morning_start.png"
           alt="Habitly mascot"
-          width={176}
-          height={176}
+          width={220}
+          height={220}
           priority
         />
       </div>

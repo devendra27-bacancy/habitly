@@ -15,6 +15,7 @@ import { StatsPage } from "../components/StatsPage";
 import type { ProfileAnalyticsData } from "../components/ProfileAnalytics";
 import { CompleteOverlay } from "../components/CompleteOverlay";
 import { LevelUpOverlay } from "../components/LevelUpOverlay";
+import { AchievementUnlockOverlay } from "../components/AchievementUnlockOverlay";
 import { ConfettiCanvas } from "../components/ConfettiCanvas";
 import { LocalMigrationPrompt } from "../components/LocalMigrationPrompt";
 import { ToastContainer } from "../components/ToastContainer";
@@ -24,6 +25,7 @@ import { localDateStr } from "../lib/dates";
 import { deleteCurrentUserAccount } from "../lib/auth";
 import { db } from "../lib/firebase";
 import { useNotifications } from "../lib/useNotifications";
+import { buildAchievementSummary } from "../lib/achievements";
 import { showToast } from "../components/ToastContainer";
 import { useAuth } from "../components/AuthProvider";
 import Login from "../components/Login";
@@ -45,7 +47,14 @@ function LoadingShell({ title, subtitle, imageSrc = "/mascot/mascot_idle_default
     <div className="app-shell state-shell">
       <div className="state-card">
         <div className="state-mascot">
-          <Image src={imageSrc} alt="Lizzo the habitly mascot" width={160} height={160} priority />
+          <Image
+            className="state-mascot-image"
+            src={imageSrc}
+            alt="Lizzo the habitly mascot"
+            width={220}
+            height={220}
+            priority
+          />
         </div>
         <h1>{title}</h1>
         <p>{subtitle}</p>
@@ -59,7 +68,14 @@ function ErrorShell({ title, message, actionLabel, onRetry }: { title: string; m
     <div className="app-shell state-shell">
       <div className="state-card">
         <div className="state-mascot">
-          <Image src="/mascot/mascot_error_reassuring.png" alt="Error mascot" width={160} height={160} priority />
+          <Image
+            className="state-mascot-image"
+            src="/mascot/mascot_error_reassuring.png"
+            alt="Error mascot"
+            width={220}
+            height={220}
+            priority
+          />
         </div>
         <h1>{title}</h1>
         <p>{message}</p>
@@ -163,8 +179,10 @@ export default function Home() {
     triggerConfetti,
     completeOverlayData,
     levelUpData,
+    achievementOverlayData,
     closeCompleteOverlay,
     closeLevelUpOverlay,
+    closeAchievementOverlay,
     migrationOpen,
     migrationBusy,
     migrationError,
@@ -661,6 +679,13 @@ export default function Home() {
     { label: "Habits in rotation", value: `${activeState.habits.length}`, tone: "sage" as const },
     { label: "Today done", value: `${completionRate}%`, tone: "sun" as const },
   ];
+  const achievements = buildAchievementSummary({
+    achievements: activeState.achievements,
+    player: activeState.player,
+    habits: activeState.habits,
+    completionHistory: activeState.completionHistory,
+    remindersEnabled: activeState.remindersEnabled,
+  });
 
   const showOfflineMutationMessage = () => {
     showToast("Off", "You are offline. Changes will be available when the connection returns.", "warning");
@@ -958,6 +983,11 @@ export default function Home() {
 
       <CompleteOverlay data={completeOverlayData} onClose={closeCompleteOverlay} />
       <LevelUpOverlay level={levelUpData} onClose={closeLevelUpOverlay} />
+      <AchievementUnlockOverlay
+        achievement={achievementOverlayData?.definition ?? null}
+        remainingCount={achievementOverlayData?.remainingCount ?? 0}
+        onClose={closeAchievementOverlay}
+      />
       <ProfilePage
         isOpen={isProfileOpen}
         onClose={() => setIsProfileOpen(false)}
@@ -1006,6 +1036,7 @@ export default function Home() {
         totalXp={activeState.player.totalXp}
         stats={profileStats}
         analytics={analytics}
+        achievements={achievements}
       />
       <LocalMigrationPrompt
         open={migrationOpen}

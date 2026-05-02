@@ -21,6 +21,14 @@ import { useAuth } from '../components/AuthProvider';
 import { showToast } from '../components/ToastContainer';
 import { db } from './firebase';
 import { ALL_DAYS, isScheduledToday, localDateStr, todayStr } from './dates';
+import {
+  areAchievementStatesEqual,
+  EMPTY_ACHIEVEMENT_STATE,
+  evaluateAchievements,
+  getAchievementDefinition,
+  type AchievementState,
+  type UnlockedAchievement,
+} from './achievements';
 
 export { todayStr, lastScheduledDayBefore, isScheduledToday, ALL_DAYS, DAY_LABELS, formatTime, localDateStr } from './dates';
 
@@ -54,9 +62,11 @@ export type AppState = {
   name: string;
   email?: string;
   photoURL?: string;
+  remindersEnabled: boolean;
   player: PlayerState;
   habits: Habit[];
   completionHistory: CompletionHistory;
+  achievements: AchievementState;
 };
 
 export type BootStatus = 'loading' | 'ready' | 'error';
@@ -112,12 +122,21 @@ type CompletionOverlayData = {
   bonusMsg: string;
 };
 
+type AchievementOverlayData = {
+  achievementId: string;
+  remainingCount: number;
+};
+
 type ProfileDoc = {
   name?: string;
   email?: string;
   photoURL?: string;
   player?: PlayerState;
   completionHistory?: CompletionHistory;
+  achievements?: AchievementState;
+  notificationSettings?: {
+    enabled?: boolean;
+  };
 };
 
 const XP_PER_COMPLETION = 10;
@@ -136,9 +155,11 @@ const defaultState: AppState = {
   name: 'Friend',
   email: undefined,
   photoURL: undefined,
+  remindersEnabled: false,
   player: defaultPlayerState,
   habits: [],
   completionHistory: {},
+  achievements: EMPTY_ACHIEVEMENT_STATE,
 };
 
 const defaultPendingMutations: PendingMutationState = {
@@ -388,7 +409,25 @@ export function useHabits() {
   const [triggerConfetti, setTriggerConfetti] = useState(0);
   const [completeOverlayData, setCompleteOverlayData] = useState<CompletionOverlayData | null>(null);
   const [levelUpData, setLevelUpData] = useState<number | null>(null);
+  const [achievementOverlayData, setAchievementOverlayData] = useState<AchievementOverlayData | null>(null);
   const saveTimerRef = useRef<number | null>(null);
+  const achievementHydratedRef = useRef(false);
+  const profileSnapshotHydratedRef = useRef(false);
+  const habitsSnapshotHydratedRef = useRef(false);
+  const latestStateRef = useRef<AppState>(defaultState);
+
+  const queueAchievementOverlay = useCallback((unlocks: UnlockedAchievement[]) => {
+    if (unlocks.length === 0) return;
+
+    setAchievementOverlayData((current) => {
+      if (current) return current;
+
+      return {
+        achievementId: unlocks[0].id,
+        remainingCount: Math.max(0, unlocks.length - 1),
+      };
+    });
+  }, []);
 
   const markSaved = useCallback(() => {
     if (saveTimerRef.current) {
@@ -422,6 +461,10 @@ export function useHabits() {
   }, []);
 
   useEffect(() => {
+    latestStateRef.current = state;
+  }, [state]);
+
+  useEffect(() => {
     return () => {
       if (saveTimerRef.current) {
         window.clearTimeout(saveTimerRef.current);
@@ -439,6 +482,10 @@ export function useHabits() {
       setMigrationPreview(null);
       setMigrationOpen(false);
       setMigrationError(null);
+      setAchievementOverlayData(null);
+      achievementHydratedRef.current = false;
+      profileSnapshotHydratedRef.current = false;
+      habitsSnapshotHydratedRef.current = false;
       return;
     }
 
@@ -469,6 +516,7 @@ export function useHabits() {
           photoURL: user.photoURL ?? '',
           player: defaultPlayerState,
           completionHistory: {},
+          achievements: EMPTY_ACHIEVEMENT_STATE,
         },
         { merge: true },
       );
@@ -496,6 +544,7 @@ export function useHabits() {
           ? data.name
           : deriveNameFromAuth(user);
         const resolvedHistory = data.completionHistory ?? {};
+        const remindersEnabled = Boolean(data.notificationSettings?.enabled);
 
         if ((!data.name || !data.name.trim()) && !isDeletionInProgress()) {
           void setDoc(
@@ -509,15 +558,60 @@ export function useHabits() {
           ).catch(console.error);
         }
 
-        setState((prev) => ({
-          ...prev,
-          uid: user.uid,
-          name: resolvedName,
-          email: user.email ?? data.email ?? prev.email,
-          photoURL: user.photoURL ?? data.photoURL ?? prev.photoURL,
-          player: derivePlayerState((data.player as PlayerState | undefined) ?? prev.player, prev.habits, resolvedHistory),
+        let shouldCelebrateAchievements = false;
+        let newlyUnlockedAchievements: UnlockedAchievement[] = [];
+        setState((prev) => {
+          const nextPlayer = derivePlayerState((data.player as PlayerState | undefined) ?? prev.player, prev.habits, resolvedHistory);
+          const achievementResult = evaluateAchievements({
+            previous: data.achievements ?? prev.achievements,
+            player: nextPlayer,
+            habits: prev.habits,
+            completionHistory: resolvedHistory,
+            remindersEnabled,
+          });
+
+          shouldCelebrateAchievements = achievementHydratedRef.current;
+          newlyUnlockedAchievements = achievementResult.newlyUnlocked;
+
+          return {
+            ...prev,
+            uid: user.uid,
+            name: resolvedName,
+            email: user.email ?? data.email ?? prev.email,
+            photoURL: user.photoURL ?? data.photoURL ?? prev.photoURL,
+            remindersEnabled,
+            player: nextPlayer,
+            completionHistory: resolvedHistory,
+            achievements: achievementResult.state,
+          };
+        });
+
+        const latestState = latestStateRef.current;
+        if (!areAchievementStatesEqual(data.achievements, evaluateAchievements({
+          previous: data.achievements,
+          player: derivePlayerState((data.player as PlayerState | undefined) ?? latestState.player, latestState.habits, resolvedHistory),
+          habits: latestState.habits,
           completionHistory: resolvedHistory,
-        }));
+          remindersEnabled,
+        }).state) && !isDeletionInProgress()) {
+          const nextPlayer = derivePlayerState((data.player as PlayerState | undefined) ?? latestState.player, latestState.habits, resolvedHistory);
+          const nextAchievementResult = evaluateAchievements({
+            previous: data.achievements,
+            player: nextPlayer,
+            habits: latestState.habits,
+            completionHistory: resolvedHistory,
+            remindersEnabled,
+          });
+
+          void setDoc(userDocRef, { achievements: nextAchievementResult.state }, { merge: true }).catch(console.error);
+        }
+
+        profileSnapshotHydratedRef.current = true;
+        if (!achievementHydratedRef.current && profileSnapshotHydratedRef.current && habitsSnapshotHydratedRef.current) {
+          achievementHydratedRef.current = true;
+        } else if (shouldCelebrateAchievements) {
+          queueAchievementOverlay(newlyUnlockedAchievements);
+        }
 
         setBootStatus('ready');
         setErrorState((current) => (current?.scope === 'bootstrap' || current?.scope === 'profile' ? null : current));
@@ -534,13 +628,47 @@ export function useHabits() {
       habitsQuery,
       async (snapshot) => {
         const habits = snapshot.docs.map((habitDoc) => ({ id: habitDoc.id, ...habitDoc.data() }) as Habit);
-        setState((prev) => ({
-          ...prev,
+        const latestState = latestStateRef.current;
+        const nextPlayerFromSnapshot = derivePlayerState(latestState.player, habits, latestState.completionHistory);
+        const nextAchievementResult = evaluateAchievements({
+          previous: latestState.achievements,
+          player: nextPlayerFromSnapshot,
           habits,
-          player: derivePlayerState(prev.player, habits, prev.completionHistory),
-        }));
+          completionHistory: latestState.completionHistory,
+          remindersEnabled: latestState.remindersEnabled,
+        });
+        let shouldCelebrateAchievements = false;
+        let newlyUnlockedAchievements: UnlockedAchievement[] = [];
+        setState((prev) => {
+          const nextPlayer = derivePlayerState(prev.player, habits, prev.completionHistory);
+          const achievementResult = evaluateAchievements({
+            previous: prev.achievements,
+            player: nextPlayer,
+            habits,
+            completionHistory: prev.completionHistory,
+            remindersEnabled: prev.remindersEnabled,
+          });
+          shouldCelebrateAchievements = achievementHydratedRef.current;
+          newlyUnlockedAchievements = achievementResult.newlyUnlocked;
+
+          return {
+            ...prev,
+            habits,
+            player: nextPlayer,
+            achievements: achievementResult.state,
+          };
+        });
         setBootStatus('ready');
         setErrorState((current) => (current?.scope === 'habits' ? null : current));
+        if (!areAchievementStatesEqual(latestState.achievements, nextAchievementResult.state) && !isDeletionInProgress()) {
+          void setDoc(userDocRef, { achievements: nextAchievementResult.state }, { merge: true }).catch(console.error);
+        }
+        habitsSnapshotHydratedRef.current = true;
+        if (!achievementHydratedRef.current && profileSnapshotHydratedRef.current && habitsSnapshotHydratedRef.current) {
+          achievementHydratedRef.current = true;
+        } else if (shouldCelebrateAchievements) {
+          queueAchievementOverlay(newlyUnlockedAchievements);
+        }
 
         if (!snapshot.empty || typeof window === 'undefined') {
           return;
@@ -608,6 +736,7 @@ export function useHabits() {
     if (!user) return false;
 
     const tempId = `temp-${Date.now()}`;
+    const previousAchievements = state.achievements;
     const optimisticHabit: Habit = {
       id: tempId,
       ...habit,
@@ -619,15 +748,31 @@ export function useHabits() {
     };
     const nextHabitsAfterAdd = [optimisticHabit, ...state.habits];
     const nextPlayerAfterAdd = derivePlayerState(state.player, nextHabitsAfterAdd, state.completionHistory);
+    const nextAchievementsAfterAdd = evaluateAchievements({
+      previous: state.achievements,
+      player: nextPlayerAfterAdd,
+      habits: nextHabitsAfterAdd,
+      completionHistory: state.completionHistory,
+      remindersEnabled: state.remindersEnabled,
+    });
 
     beginSync();
     updatePending((current) => ({ ...current, adding: true }));
     setState((prev) => {
       const nextHabits = [optimisticHabit, ...prev.habits];
+      const nextPlayer = derivePlayerState(prev.player, nextHabits, prev.completionHistory);
+      const nextAchievements = evaluateAchievements({
+        previous: prev.achievements,
+        player: nextPlayer,
+        habits: nextHabits,
+        completionHistory: prev.completionHistory,
+        remindersEnabled: prev.remindersEnabled,
+      });
       return {
         ...prev,
         habits: nextHabits,
-        player: derivePlayerState(prev.player, nextHabits, prev.completionHistory),
+        player: nextPlayer,
+        achievements: nextAchievements.state,
       };
     });
 
@@ -640,7 +785,8 @@ export function useHabits() {
         lastCompleted: null,
         createdAt: todayStr(),
       });
-      await setDoc(doc(db, 'users', user.uid), { player: nextPlayerAfterAdd }, { merge: true });
+      await setDoc(doc(db, 'users', user.uid), { player: nextPlayerAfterAdd, achievements: nextAchievementsAfterAdd.state }, { merge: true });
+      queueAchievementOverlay(nextAchievementsAfterAdd.newlyUnlocked);
       showToast('🌱', 'Habit saved', 'success');
       markSaved();
       return true;
@@ -651,6 +797,7 @@ export function useHabits() {
           ...prev,
           habits: nextHabits,
           player: derivePlayerState(prev.player, nextHabits, prev.completionHistory),
+          achievements: previousAchievements,
         };
       });
       showToast('⚠️', extractErrorMessage(error, 'Could not save your habit.'), 'error');
@@ -666,23 +813,41 @@ export function useHabits() {
 
     const previousHabit = state.habits.find((habit) => habit.id === id);
     if (!previousHabit) return false;
+    const previousAchievements = state.achievements;
     const nextHabitsAfterEdit = state.habits.map((habit) => (habit.id === id ? { ...habit, ...updates } : habit));
     const nextPlayerAfterEdit = derivePlayerState(state.player, nextHabitsAfterEdit, state.completionHistory);
+    const nextAchievementsAfterEdit = evaluateAchievements({
+      previous: state.achievements,
+      player: nextPlayerAfterEdit,
+      habits: nextHabitsAfterEdit,
+      completionHistory: state.completionHistory,
+      remindersEnabled: state.remindersEnabled,
+    });
 
     beginSync();
     updatePending((current) => ({ ...current, editingIds: addId(current.editingIds, id) }));
     setState((prev) => {
       const nextHabits = prev.habits.map((habit) => (habit.id === id ? { ...habit, ...updates } : habit));
+      const nextPlayer = derivePlayerState(prev.player, nextHabits, prev.completionHistory);
+      const nextAchievements = evaluateAchievements({
+        previous: prev.achievements,
+        player: nextPlayer,
+        habits: nextHabits,
+        completionHistory: prev.completionHistory,
+        remindersEnabled: prev.remindersEnabled,
+      });
       return {
         ...prev,
         habits: nextHabits,
-        player: derivePlayerState(prev.player, nextHabits, prev.completionHistory),
+        player: nextPlayer,
+        achievements: nextAchievements.state,
       };
     });
 
     try {
       await updateDoc(doc(db, 'users', user.uid, 'habits', id), updates);
-      await setDoc(doc(db, 'users', user.uid), { player: nextPlayerAfterEdit }, { merge: true });
+      await setDoc(doc(db, 'users', user.uid), { player: nextPlayerAfterEdit, achievements: nextAchievementsAfterEdit.state }, { merge: true });
+      queueAchievementOverlay(nextAchievementsAfterEdit.newlyUnlocked);
       showToast('✨', 'Habit updated', 'success');
       markSaved();
       return true;
@@ -693,6 +858,7 @@ export function useHabits() {
           ...prev,
           habits: nextHabits,
           player: derivePlayerState(prev.player, nextHabits, prev.completionHistory),
+          achievements: previousAchievements,
         };
       });
       showToast('⚠️', extractErrorMessage(error, 'Could not update your habit.'), 'error');
@@ -709,18 +875,37 @@ export function useHabits() {
     const previousHabit = state.habits.find((habit) => habit.id === id);
     if (!previousHabit) return false;
     const previousHistory = state.completionHistory;
+    const previousAchievements = state.achievements;
     const nextHistory = stripHabitFromCompletionHistory(previousHistory, id);
+    const nextHabitsAfterDelete = state.habits.filter((habit) => habit.id !== id);
+    const nextPlayerAfterDelete = derivePlayerState(state.player, nextHabitsAfterDelete, nextHistory);
+    const nextAchievementsAfterDelete = evaluateAchievements({
+      previous: state.achievements,
+      player: nextPlayerAfterDelete,
+      habits: nextHabitsAfterDelete,
+      completionHistory: nextHistory,
+      remindersEnabled: state.remindersEnabled,
+    });
 
     beginSync();
     updatePending((current) => ({ ...current, deletingIds: addId(current.deletingIds, id) }));
     setState((prev) => {
       const nextHabits = prev.habits.filter((habit) => habit.id !== id);
       const nextCompletionHistory = stripHabitFromCompletionHistory(prev.completionHistory, id);
+      const nextPlayer = derivePlayerState(prev.player, nextHabits, nextCompletionHistory);
+      const nextAchievements = evaluateAchievements({
+        previous: prev.achievements,
+        player: nextPlayer,
+        habits: nextHabits,
+        completionHistory: nextCompletionHistory,
+        remindersEnabled: prev.remindersEnabled,
+      });
       return {
         ...prev,
         habits: nextHabits,
         completionHistory: nextCompletionHistory,
-        player: derivePlayerState(prev.player, nextHabits, nextCompletionHistory),
+        player: nextPlayer,
+        achievements: nextAchievements.state,
       };
     });
 
@@ -729,7 +914,7 @@ export function useHabits() {
       batch.delete(doc(db, 'users', user.uid, 'habits', id));
       batch.set(
         doc(db, 'users', user.uid),
-        { completionHistory: nextHistory, player: derivePlayerState(state.player, state.habits.filter((habit) => habit.id !== id), nextHistory) },
+        { completionHistory: nextHistory, player: nextPlayerAfterDelete, achievements: nextAchievementsAfterDelete.state },
         { merge: true },
       );
       await batch.commit();
@@ -744,6 +929,7 @@ export function useHabits() {
           habits: nextHabits,
           completionHistory: previousHistory,
           player: derivePlayerState(prev.player, nextHabits, previousHistory),
+          achievements: previousAchievements,
         };
       });
       showToast('⚠️', extractErrorMessage(error, 'Could not delete your habit.'), 'error');
@@ -795,6 +981,13 @@ export function useHabits() {
       );
 
       const migratedPlayer = derivePlayerState(migrationPreview.player, migrationPreview.habits, completionHistory);
+      const migratedAchievements = evaluateAchievements({
+        previous: EMPTY_ACHIEVEMENT_STATE,
+        player: migratedPlayer,
+        habits: migrationPreview.habits,
+        completionHistory,
+        remindersEnabled: false,
+      });
       batch.set(
         userDocRef,
         {
@@ -803,6 +996,7 @@ export function useHabits() {
           photoURL: user.photoURL ?? '',
           player: migratedPlayer,
           completionHistory,
+          achievements: migratedAchievements.state,
         },
         { merge: true },
       );
@@ -841,6 +1035,7 @@ export function useHabits() {
     const previousHabit = habit;
     const previousPlayer = state.player;
     const previousHistory = state.completionHistory;
+    const previousAchievements = state.achievements;
     const previousLevel = state.player.level;
     const alreadyDone = habit.lastCompleted === today;
     const optimisticTotalDone = alreadyDone ? Math.max(0, habit.totalDone - 1) : habit.totalDone + 1;
@@ -884,6 +1079,13 @@ export function useHabits() {
     }
     optimisticPlayer.streak = optimisticDerivedPlayer.streak;
     optimisticPlayer.longestStreak = optimisticDerivedPlayer.longestStreak;
+    const optimisticAchievements = evaluateAchievements({
+      previous: state.achievements,
+      player: optimisticPlayer,
+      habits: optimisticHabits,
+      completionHistory: optimisticHistory,
+      remindersEnabled: state.remindersEnabled,
+    });
 
     beginSync();
     updatePending((current) => ({ ...current, togglingIds: addId(current.togglingIds, habitId) }));
@@ -892,6 +1094,7 @@ export function useHabits() {
       habits: optimisticHabits,
       player: optimisticPlayer,
       completionHistory: optimisticHistory,
+      achievements: optimisticAchievements.state,
     }));
 
     if (!alreadyDone) {
@@ -981,12 +1184,21 @@ export function useHabits() {
         nextPlayer.streak = nextDerivedPlayer.streak;
         nextPlayer.longestStreak = nextDerivedPlayer.longestStreak;
 
+        const nextAchievements = evaluateAchievements({
+          previous: profileData.achievements ?? previousAchievements,
+          player: nextPlayer,
+          habits: nextHabits,
+          completionHistory: nextHistory,
+          remindersEnabled: state.remindersEnabled,
+        });
+
         transaction.set(userDocRef, {
           name: profileData.name ?? deriveNameFromAuth(user),
           email: user.email ?? profileData.email ?? '',
           photoURL: user.photoURL ?? profileData.photoURL ?? '',
           player: nextPlayer,
           completionHistory: nextHistory,
+          achievements: nextAchievements.state,
         }, { merge: true });
 
         return {
@@ -1001,6 +1213,8 @@ export function useHabits() {
           leveledUp,
           bonusMsg,
           isUndo,
+          achievements: nextAchievements.state,
+          newlyUnlockedAchievements: nextAchievements.newlyUnlocked,
         };
       });
 
@@ -1009,7 +1223,10 @@ export function useHabits() {
         habits: prev.habits.map((item) => (item.id === habitId ? result.habit : item)),
         player: result.player,
         completionHistory: result.completionHistory,
+        achievements: result.achievements,
       }));
+
+      queueAchievementOverlay(result.newlyUnlockedAchievements);
 
       if (result.leveledUp && result.player.level !== previousLevel) {
         setTimeout(() => setLevelUpData(result.player.level), 2500);
@@ -1024,6 +1241,7 @@ export function useHabits() {
         habits: prev.habits.map((item) => (item.id === habitId ? previousHabit : item)),
         player: previousPlayer,
         completionHistory: previousHistory,
+        achievements: previousAchievements,
       }));
       if (!alreadyDone) {
         setCompleteOverlayData(null);
@@ -1038,6 +1256,7 @@ export function useHabits() {
 
   const closeCompleteOverlay = () => setCompleteOverlayData(null);
   const closeLevelUpOverlay = () => setLevelUpData(null);
+  const closeAchievementOverlay = () => setAchievementOverlayData(null);
 
   return {
     state,
@@ -1055,8 +1274,15 @@ export function useHabits() {
     triggerConfetti,
     completeOverlayData,
     levelUpData,
+    achievementOverlayData: achievementOverlayData
+      ? {
+          ...achievementOverlayData,
+          definition: getAchievementDefinition(achievementOverlayData.achievementId),
+        }
+      : null,
     closeCompleteOverlay,
     closeLevelUpOverlay,
+    closeAchievementOverlay,
     migrationOpen,
     migrationBusy,
     migrationError,
